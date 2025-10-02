@@ -1,0 +1,5 @@
+Tomato___Target_Spot -> Tomato___Spider_mites Two-spotted_spider_mite: 16 / 210 (7.6%)
+Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot -> Corn_(maize)___Northern_Leaf_Blight: 8 / 76 (10.5%)
+Tomato___Septoria_leaf_spot -> Tomato___Spider_mites Two-spotted_spider_mite: 3 / 265 (1.1%)
+Tomato___Early_blight -> Tomato___Late_blight: 2 / 150 (1.3%)
+Apple___Apple_scab -> Apple___healthy: 1 / 94 (1.1%)
