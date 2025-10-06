@@ -1,64 +1,100 @@
-def train_one_epoch_single(model, loader, criterion, optimizer, device):
+import torch
+import torch.nn.functional as F
+from torch.cuda.amp import autocast, GradScaler
+
+# -----------------------------
+# single-task
+# -----------------------------
+def train(model, loader, criterion, optimizer, device):
     model.train()
     running_loss, correct, total = 0.0, 0, 0
-    for batch in loader:
-        imgs, labels = batch[0].to(device), batch[1].to(device)
-        optimizer.zero_grad()  # clears previous gradients before computing new ones
+    for imgs, labels, *_ in loader:
+        imgs = imgs.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
 
-        # compute predictions and loss
+        optimizer.zero_grad(set_to_none=True)
         outputs = model(imgs)
         loss = criterion(outputs, labels)
-
-        # Backpropagation
         loss.backward()
         optimizer.step()
 
-        # aggregate batch losses
-        batch_size = imgs.size(0)
-        batch_loss = loss.item() * batch_size
-        running_loss += batch_loss
-
+        bs = imgs.size(0)
+        running_loss += float(loss.item()) * bs
         preds = outputs.argmax(dim=1)
         correct += (preds == labels).sum().item()
-        total += labels.size(0)
+        total += bs
 
-    train_loss = running_loss / total
-    train_acc = correct / total
+    return running_loss / total, correct / total
 
-    return train_loss, train_acc
-
-
-def train_one_epoch_multi(model, loader, d_criterion, h_criterion, optimizer, device, h_loss_weight: float):
+# -----------------------------
+# Multi-task (3 heads): species, health, disease
+# health target convention: 1 = Healthy, 0 = Sick
+# -----------------------------
+def train_mtl(model,
+              loader,
+              optimizer,
+              device,
+              w_species: float = 1.0,
+              w_health:  float = 1.0,
+              w_disease: float = 0.5,
+              use_amp: bool = False):
     model.train()
-    loss_sum, d_correct, h_correct, total = 0.0, 0, 0, 0
-    for batch in loader:
-        imgs = batch[0].to(device)
-        labels_d = batch[1].to(device).long()
-        labels_h = batch[2].to(device).long()
-        optimizer.zero_grad()
+    scaler = GradScaler(enabled=use_amp)
 
-        # compute predictions and loss
-        out_d, out_h = model(imgs)
-        loss_d = d_criterion(out_d, labels_d)
-        loss_h = h_criterion(out_h, labels_h)
+    loss_sum = 0.0
+    total = 0
+    sp_correct = 0
+    hl_correct = 0
+    dz_correct_overall = 0
+    dz_correct_sick = 0
+    sick_count = 0
 
-        loss = loss_d + h_loss_weight * loss_h
+    for imgs, target, *_ in loader:
+        imgs = imgs.to(device, non_blocking=True)
+        sp = target["species"].to(device, non_blocking=True).long()
+        hl = target["health"].to(device, non_blocking=True).long()     # 1=Healthy, 0=Sick
+        dz = target["disease"].to(device, non_blocking=True).long()
 
-        # Backpropagation
-        loss.backward()
-        optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
 
-        # aggregate batch losses
-        batch_size = imgs.size(0)
-        batch_loss = float(loss.item()) * imgs.size(0)
-        loss_sum += batch_loss
+        with autocast(enabled=use_amp):
+            sp_logits, hl_logits, dz_logits = model(imgs)
+            loss_sp = F.cross_entropy(sp_logits, sp)
+            loss_hl = F.cross_entropy(hl_logits,  hl)
+            loss_dz = F.cross_entropy(dz_logits, dz)
+            loss = w_species*loss_sp + w_health*loss_hl + w_disease*loss_dz
 
-        d_correct += (out_d.argmax(dim=1) == labels_d).sum().item()
-        h_correct += (out_h.argmax(dim=1) == labels_h).sum().item()
-        total += batch_size
+        if use_amp:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
 
-    train_loss = loss_sum / total
-    train_d_acc = d_correct / total
-    train_h_acc = h_correct / total
+        bs = imgs.size(0)
+        loss_sum += float(loss.item()) * bs
+        total += bs
 
-    return train_loss, train_d_acc, train_h_acc
+        # metrics
+        sp_pred = sp_logits.argmax(1)
+        hl_pred = hl_logits.argmax(1)
+        dz_pred = dz_logits.argmax(1)
+
+        sp_correct += (sp_pred == sp).sum().item()
+        hl_correct += (hl_pred == hl).sum().item()
+        dz_correct_overall += (dz_pred == dz).sum().item()
+
+        sick_mask = (hl == 0)
+        if sick_mask.any():
+            dz_correct_sick += (dz_pred[sick_mask] == dz[sick_mask]).sum().item()
+            sick_count += int(sick_mask.sum().item())
+
+    metrics = {
+        "loss": loss_sum / max(1, total),
+        "species_acc": sp_correct / max(1, total),
+        "health_acc":  hl_correct / max(1, total),
+        "disease_acc_overall": dz_correct_overall / max(1, total),
+        "disease_acc_sick_only": (dz_correct_sick / sick_count) if sick_count > 0 else 0.0,
+    }
+    return metrics

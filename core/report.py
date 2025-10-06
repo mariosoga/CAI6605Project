@@ -5,25 +5,48 @@ from .utils import plot_confusion_matrix
 
 
 def write_classification_report(y_true, y_pred, class_names: List[str], out_path: Path):
-    report = classification_report(y_true, y_pred, target_names=class_names, digits=4)
+    # Explicit labels to lock the class order and avoid "missing class" issues
+    labels = list(range(len(class_names)))
+    report = classification_report(
+        y_true, y_pred,
+        target_names=class_names,
+        labels=labels,
+        digits=4,
+        zero_division=0
+    )
     out_path.write_text(report)
     return report
 
-def write_binary_report(y_true, y_pred, out_path: Path, labels=('healthy','sick')):
-    report = classification_report(y_true, y_pred, target_names=list(labels), digits=4)
+
+def write_binary_report(
+        y_true,
+        y_pred,
+        out_path: Path,
+        # IMPORTANT: index 0 -> "Sick", index 1 -> "Healthy" (matches your dataset convention 0=Sick, 1=Healthy)
+        labels=('Sick', 'Healthy')
+):
+    report = classification_report(
+        y_true, y_pred,
+        target_names=list(labels),
+        labels=[0, 1],
+        digits=4,
+        zero_division=0
+    )
     out_path.write_text(report)
     return report
 
-def save_confusion_matrix_img(y_true, y_pred, class_names: List[str], out_dir: Path):
-    cm_path = out_dir / "confusion_matrix.png"
+
+def save_confusion_matrix_img(y_true, y_pred, class_names: List[str], out_dir: Path, prefix: str):
+    cm_path = out_dir / f"{prefix}confusion_matrix.png"
     plot_confusion_matrix(y_true, y_pred, class_names, cm_path)
     return cm_path
+
 
 def export_val_predictions_csv(records, class_names: List[str], out_csv: Path):
     with out_csv.open('w', newline='') as f:
         import csv
         writer = csv.writer(f)
-        writer.writerow(["path","true_label","pred_label","pred_conf","true_conf","top2_label","top2_conf"])
+        writer.writerow(["path", "true_label", "pred_label", "pred_conf", "true_conf", "top2_label", "top2_conf"])
         for r in records:
             writer.writerow([
                 r["path"],
@@ -35,11 +58,17 @@ def export_val_predictions_csv(records, class_names: List[str], out_csv: Path):
                 f"{r['top2_conf']:.6f}" if "top2_conf" in r else "",
             ])
 
-def export_val_predictions_csv_binary(records, out_csv: Path, labels=('healthy','sick')):
+
+def export_val_predictions_csv_binary(
+        records,
+        out_csv: Path,
+        # Match convention: 0=Sick, 1=Healthy
+        labels=('Sick', 'Healthy')
+):
     with out_csv.open('w', newline='') as f:
         import csv
         writer = csv.writer(f)
-        writer.writerow(["path","true_label","pred_label","pred_conf","true_conf"])
+        writer.writerow(["path", "true_label", "pred_label", "pred_conf", "true_conf"])
         for r in records:
             writer.writerow([
                 r["path"],
@@ -49,32 +78,44 @@ def export_val_predictions_csv_binary(records, out_csv: Path, labels=('healthy',
                 f"{r['true_conf']:.6f}",
             ])
 
-def save_hard_examples(out_dir: Path, records: List[Dict[str, Any]], class_names: List[str], k: int = 50):
+
+def save_hard_examples(out_dir: Path, records: List[Dict[str, Any]], class_names: List[str], k: int = 50, prefix: str = ''):
     from .utils import ensure_dir
     import shutil
     wrong = [r for r in records if r["pred_idx"] != r["true_idx"]]
     wrong.sort(key=lambda r: r["pred_conf"], reverse=True)
-    ow_dir = out_dir / "hard_examples" / "overconfident_wrong"
+    ow_dir = out_dir / "hard_examples" / f"{prefix}overconfident_wrong"
     ensure_dir(ow_dir)
     for r in wrong[:k]:
         src = Path(r["path"])
         name = f"true={class_names[r['true_idx']]}__pred={class_names[r['pred_idx']]}__p={r['pred_conf']:.3f}{src.suffix}"
         dst = ow_dir / name
-        try: shutil.copy2(src, dst)
-        except Exception: pass
+        try:
+            shutil.copy2(src, dst)
+        except Exception:
+            pass
 
     correct = [r for r in records if r["pred_idx"] == r["true_idx"]]
     correct.sort(key=lambda r: r["true_conf"])
-    uc_dir = out_dir / "hard_examples" / "uncertain_correct"
+    uc_dir = out_dir / "hard_examples" / f"{prefix}uncertain_correct"
     ensure_dir(uc_dir)
     for r in correct[:k]:
         src = Path(r["path"])
         name = f"true={class_names[r['true_idx']]}__pred={class_names[r['pred_idx']]}__p={r['true_conf']:.3f}{src.suffix}"
         dst = uc_dir / name
-        try: shutil.copy2(src, dst)
-        except Exception: pass
+        try:
+            shutil.copy2(src, dst)
+        except Exception:
+            pass
 
-def save_hard_examples_binary(out_dir: Path, records: List[Dict[str, Any]], k: int = 50, labels=('healthy','sick')):
+
+def save_hard_examples_binary(
+        out_dir: Path,
+        records: List[Dict[str, Any]],
+        k: int = 50,
+        # Match convention: 0=Sick, 1=Healthy
+        labels=('Sick', 'Healthy')
+):
     from .utils import ensure_dir
     import shutil
     wrong = [r for r in records if r["pred_idx"] != r["true_idx"]]
@@ -85,8 +126,10 @@ def save_hard_examples_binary(out_dir: Path, records: List[Dict[str, Any]], k: i
         src = Path(r["path"])
         name = f"true={labels[r['true_idx']]}__pred={labels[r['pred_idx']]}__p={r['pred_conf']:.3f}{src.suffix}"
         dst = ow_dir / name
-        try: shutil.copy2(src, dst)
-        except Exception: pass
+        try:
+            shutil.copy2(src, dst)
+        except Exception:
+            pass
 
     correct = [r for r in records if r["pred_idx"] == r["true_idx"]]
     correct.sort(key=lambda r: r["true_conf"])
@@ -96,10 +139,14 @@ def save_hard_examples_binary(out_dir: Path, records: List[Dict[str, Any]], k: i
         src = Path(r["path"])
         name = f"true={labels[r['true_idx']]}__pred={labels[r['pred_idx']]}__p={r['true_conf']:.3f}{src.suffix}"
         dst = uc_dir / name
-        try: shutil.copy2(src, dst)
-        except Exception: pass
+        try:
+            shutil.copy2(src, dst)
+        except Exception:
+            pass
 
-def save_top_confusion_pairs(out_dir: Path, y_true, y_pred, class_names: List[str], records: List[Dict[str, Any]], m: int = 5, examples_per_pair: int = 8):
+
+def save_top_confusion_pairs(out_dir: Path, y_true, y_pred, class_names: List[str], records: List[Dict[str, Any]],
+                             m: int = 5, examples_per_pair: int = 8):
     from .utils import ensure_dir
     import shutil
     cm = confusion_matrix(y_true, y_pred, labels=list(range(len(class_names))))
@@ -130,5 +177,7 @@ def save_top_confusion_pairs(out_dir: Path, y_true, y_pred, class_names: List[st
             src = Path(r["path"])
             name = f"p={r['pred_conf']:.3f}__true={class_names[i]}__pred={class_names[j]}{src.suffix}"
             dst = pair_dir / name
-            try: shutil.copy2(src, dst)
-            except Exception: pass
+            try:
+                shutil.copy2(src, dst)
+            except Exception:
+                pass

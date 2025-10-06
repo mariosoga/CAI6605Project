@@ -4,13 +4,17 @@ import torch
 
 @torch.no_grad()
 def evaluate(model, loader, criterion, device):
+    """Single-head (legacy) evaluation for (img, class_idx, path, idx) loaders."""
     model.eval()
     running_loss, correct, total = 0.0, 0, 0
     y_true_all, y_pred_all = [], []
     records = []
+
     for batch in loader:
-        imgs, labels = batch[0].to(device), batch[1].to(device)
-        paths = batch[2]
+        imgs, labels, paths, *_ = batch
+        imgs = imgs.to(device)
+        labels = labels.to(device)
+
         outputs = model(imgs)
         loss = criterion(outputs, labels)
         probs = torch.softmax(outputs, dim=1)
@@ -20,14 +24,19 @@ def evaluate(model, loader, criterion, device):
         correct += (preds == labels).sum().item()
         total += labels.size(0)
 
-        top2_probs, top2_idx = torch.topk(probs, k=2, dim=1)
-        for i in range(len(paths)):
-            t = int(labels[i].cpu().item())
-            p = int(preds[i].cpu().item())
-            pr_true = float(probs[i, t].cpu().item())
-            pr_pred = float(probs[i, p].cpu().item())
-            t2i = int(top2_idx[i, 1].cpu().item()) if top2_idx.size(1) > 1 else p
-            t2p = float(top2_probs[i, 1].cpu().item()) if top2_probs.size(1) > 1 else pr_pred
+        top2_probs, top2_idx = torch.topk(probs, k=min(2, probs.size(1)), dim=1)
+        bs = imgs.size(0)
+        for i in range(bs):
+            t = int(labels[i].item())
+            p = int(preds[i].item())
+            pr_true = float(probs[i, t].item())
+            pr_pred = float(probs[i, p].item())
+            # handle 1-class edge case
+            if probs.size(1) > 1:
+                t2i = int(top2_idx[i, 1].item())
+                t2p = float(top2_probs[i, 1].item())
+            else:
+                t2i, t2p = p, pr_pred
             records.append({
                 "path": paths[i],
                 "true_idx": t,
@@ -46,65 +55,167 @@ def evaluate(model, loader, criterion, device):
 
 
 @torch.no_grad()
-def evaluate_multitask(model, loader, disease_criterion, health_criterion, device, health_loss_weight: float = 0.5):
+def evaluate_mtl(model,
+                 loader,
+                 species_criterion,
+                 health_criterion,
+                 disease_criterion,
+                 device,
+                 w_species: float = 1.0,
+                 w_health: float = 1.0,
+                 w_disease: float = 0.5):  # classifying disease is harder, weight = 0.5 to reduce influence
     model.eval()
-    loss_sum, total, d_correct, h_correct = 0.0, 0, 0, 0
-    y_true_d, y_pred_d, y_true_h, y_pred_h = [], [], [], []
-    records_d, records_h = [], []
-    for batch in loader:
-        imgs = batch[0].to(device)
-        labels_d = batch[1].to(device).long()
-        labels_h = batch[2].to(device).long()
-        paths = batch[3]
-        out_d, out_h = model(imgs)
-        loss_d = disease_criterion(out_d, labels_d)
-        loss_h = health_criterion(out_h, labels_h)
-        loss = loss_d + health_loss_weight * loss_h
 
-        probs_d = torch.softmax(out_d, dim=1)
-        preds_d = probs_d.argmax(dim=1)
-        probs_h = torch.softmax(out_h, dim=1)
-        preds_h = probs_h.argmax(dim=1)
+    loss_sum, total = 0.0, 0
+
+    # Accumulators
+    sp_correct = 0
+    hl_correct = 0
+    dz_correct_overall = 0
+    dz_correct_sick = 0
+    sick_count = 0
+
+    y_true_sp, y_pred_sp = [], []
+    y_true_hl, y_pred_hl = [], []
+    y_true_dz, y_pred_dz = [], []
+
+    records_sp, records_hl, records_dz = [], [], []
+
+    for batch in loader:
+        imgs, target, paths, *_ = batch
+        imgs = imgs.to(device)
+
+        sp = target["species"].to(device).long()
+        hl = target["health"].to(device).long()      # 1=Healthy, 0=Sick
+        dz = target["disease"].to(device).long()
+
+        # Forward
+        sp_logits, hl_logits, dz_logits = model(imgs)
+
+        # Loss (sum, we'll average later)
+        loss_sp = species_criterion(sp_logits, sp)
+        loss_hl = health_criterion(hl_logits, hl)
+        loss_dz = disease_criterion(dz_logits, dz)
+        loss = w_species * loss_sp + w_health * loss_hl + w_disease * loss_dz
 
         bs = imgs.size(0)
         loss_sum += float(loss.item()) * bs
         total += bs
-        d_correct += (preds_d == labels_d).sum().item()
-        h_correct += (preds_h == labels_h).sum().item()
 
-        top2_probs_d, top2_idx_d = torch.topk(probs_d, k=2, dim=1)
+        # Predictions / probs
+        sp_probs = torch.softmax(sp_logits, dim=1)
+        hl_probs = torch.softmax(hl_logits, dim=1)
+        dz_probs = torch.softmax(dz_logits, dim=1)
+
+        sp_pred = sp_probs.argmax(1)
+        hl_pred = hl_probs.argmax(1)
+        dz_pred = dz_probs.argmax(1)
+
+        # Accuracies
+        sp_correct += (sp_pred == sp).sum().item()
+        hl_correct += (hl_pred == hl).sum().item()
+        dz_correct_overall += (dz_pred == dz).sum().item()
+
+        sick_mask = (hl == 0)
+        if sick_mask.any():
+            dz_correct_sick += (dz_pred[sick_mask] == dz[sick_mask]).sum().item()
+            sick_count += int(sick_mask.sum().item())
+
+        # Store y_true / y_pred
+        y_true_sp.extend([int(v) for v in sp.cpu().tolist()])
+        y_pred_sp.extend([int(v) for v in sp_pred.cpu().tolist()])
+
+        y_true_hl.extend([int(v) for v in hl.cpu().tolist()])
+        y_pred_hl.extend([int(v) for v in hl_pred.cpu().tolist()])
+
+        y_true_dz.extend([int(v) for v in dz.cpu().tolist()])
+        y_pred_dz.extend([int(v) for v in dz_pred.cpu().tolist()])
+
+        # Records (top-2 for species/disease; health is 2-class so top-2 is trivial)
+        topk_sp = min(2, sp_probs.size(1))
+        topk_dz = min(2, dz_probs.size(1))
+        top2_probs_sp, top2_idx_sp = torch.topk(sp_probs, k=topk_sp, dim=1)
+        top2_probs_dz, top2_idx_dz = torch.topk(dz_probs, k=topk_dz, dim=1)
+
         for i in range(bs):
-            td = int(labels_d[i].cpu().item())
-            pd = int(preds_d[i].cpu().item())
-            prd_true = float(probs_d[i, td].cpu().item())
-            prd_pred = float(probs_d[i, pd].cpu().item())
-            t2i = int(top2_idx_d[i, 1].cpu().item()) if top2_idx_d.size(1) > 1 else pd
-            t2p = float(top2_probs_d[i, 1].cpu().item()) if top2_probs_d.size(1) > 1 else prd_pred
-            records_d.append({
+            # Species record
+            t_sp = int(sp[i].item())
+            p_sp = int(sp_pred[i].item())
+            pr_sp_true = float(sp_probs[i, t_sp].item())
+            pr_sp_pred = float(sp_probs[i, p_sp].item())
+            if topk_sp > 1:
+                t2i_sp = int(top2_idx_sp[i, 1].item())
+                t2p_sp = float(top2_probs_sp[i, 1].item())
+            else:
+                t2i_sp, t2p_sp = p_sp, pr_sp_pred
+            records_sp.append({
                 "path": paths[i],
-                "true_idx": td,
-                "pred_idx": pd,
-                "pred_conf": prd_pred,
-                "true_conf": prd_true,
-                "top2_idx": t2i,
-                "top2_conf": t2p,
+                "true_idx": t_sp,
+                "pred_idx": p_sp,
+                "pred_conf": pr_sp_pred,
+                "true_conf": pr_sp_true,
+                "top2_idx": t2i_sp,
+                "top2_conf": t2p_sp,
             })
-            y_true_d.append(td); y_pred_d.append(pd)
 
-            th = int(labels_h[i].cpu().item())
-            ph = int(preds_h[i].cpu().item())
-            prh_true = float(probs_h[i, th].cpu().item())
-            prh_pred = float(probs_h[i, ph].cpu().item())
-            records_h.append({
+            # Health record (binary; we still log top-2 for consistency)
+            t_hl = int(hl[i].item())
+            p_hl = int(hl_pred[i].item())
+            pr_hl_true = float(hl_probs[i, t_hl].item())
+            pr_hl_pred = float(hl_probs[i, p_hl].item())
+            # For binary, top-2 is just the other class
+            t2i_hl = 1 - p_hl
+            t2p_hl = float(hl_probs[i, t2i_hl].item())
+            records_hl.append({
                 "path": paths[i],
-                "true_idx": th,
-                "pred_idx": ph,
-                "pred_conf": prh_pred,
-                "true_conf": prh_true,
+                "true_idx": t_hl,
+                "pred_idx": p_hl,
+                "pred_conf": pr_hl_pred,
+                "true_conf": pr_hl_true,
+                "top2_idx": t2i_hl,
+                "top2_conf": t2p_hl,
             })
-            y_true_h.append(th); y_pred_h.append(ph)
 
-    loss_avg = loss_sum / max(1, total)
-    return (loss_avg,
-            d_correct / max(1, total), np.array(y_true_d), np.array(y_pred_d), records_d,
-            h_correct / max(1, total), np.array(y_true_h), np.array(y_pred_h), records_h)
+            # Disease record
+            t_dz = int(dz[i].item())
+            p_dz = int(dz_pred[i].item())
+            pr_dz_true = float(dz_probs[i, t_dz].item())
+            pr_dz_pred = float(dz_probs[i, p_dz].item())
+            if topk_dz > 1:
+                t2i_dz = int(top2_idx_dz[i, 1].item())
+                t2p_dz = float(top2_probs_dz[i, 1].item())
+            else:
+                t2i_dz, t2p_dz = p_dz, pr_dz_pred
+            records_dz.append({
+                "path": paths[i],
+                "true_idx": t_dz,
+                "pred_idx": p_dz,
+                "pred_conf": pr_dz_pred,
+                "true_conf": pr_dz_true,
+                "top2_idx": t2i_dz,
+                "top2_conf": t2p_dz,
+            })
+
+    metrics = {
+        "loss": loss_sum / max(1, total),
+        "species": {
+            "acc": sp_correct / max(1, total),
+            "y_true": np.array(y_true_sp, dtype=np.int64),
+            "y_pred": np.array(y_pred_sp, dtype=np.int64),
+            "records": records_sp,
+        },
+        "health": {
+            "acc": hl_correct / max(1, total),
+            "y_true": np.array(y_true_hl, dtype=np.int64),
+            "y_pred": np.array(y_pred_hl, dtype=np.int64),
+            "records": records_hl,
+        },
+        "disease": {
+            "acc_overall": dz_correct_overall / max(1, total),
+            "acc_sick_only": (dz_correct_sick / sick_count) if sick_count > 0 else 0.0,
+            "y_true": np.array(y_true_dz, dtype=np.int64),
+            "y_pred": np.array(y_pred_dz, dtype=np.int64),
+            "records": records_dz,
+        },
+    }
+    return metrics
