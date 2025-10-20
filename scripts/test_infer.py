@@ -72,9 +72,10 @@ def main():
 
     ckpt_path = Path(args.ckpt)
     model, meta = load_model(ckpt_path, device)
+    ckpt_args = (meta.get("args") or {})
 
-    mean = parse_floats(meta['mean'])
-    std = parse_floats(meta['std'])
+    mean = parse_floats(ckpt_args.get("norm_mean") or ckpt_args.get("mean") or [0.485, 0.456, 0.406])
+    std = parse_floats(ckpt_args.get("norm_std") or ckpt_args.get("std") or [0.229, 0.224, 0.225])
     species_list = meta['species_list']
     disease_list = meta['disease_list']
     class_names = meta['class_names']
@@ -82,7 +83,8 @@ def main():
     chkpt_args = meta.get("args", {}) or {}
     multitask = chkpt_args['multitask']
 
-    img_size = chkpt_args['img_size']
+    img_size = int(ckpt_args.get("img_size", 224))
+    batch_size = int(ckpt_args.get("batch_size", 32))
 
     tfm = build_transforms(img_size, "val", mean, std)
 

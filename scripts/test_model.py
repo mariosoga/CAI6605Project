@@ -303,7 +303,6 @@ def main():
     device = get_device()
 
     model, meta = load_model(ckpt_path, device)
-
     ckpt_args = (meta.get("args") or {})
     mean = parse_floats(ckpt_args.get("norm_mean") or ckpt_args.get("mean") or [0.485, 0.456, 0.406])
     std = parse_floats(ckpt_args.get("norm_std") or ckpt_args.get("std") or [0.229, 0.224, 0.225])

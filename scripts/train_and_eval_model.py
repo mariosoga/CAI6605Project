@@ -19,7 +19,7 @@ from core.utils import set_seed, get_device, ensure_dir, parse_floats
 def main():
     data_dir = r"/data/plantvillage dataset/color"
 
-    parser = argparse.ArgumentParser(description="Smart Plant Care Assistant — Training Entry (Multi-task)")
+    parser = argparse.ArgumentParser(description="Smart Plant Observation Tool — Training Entry (Multi-task)")
     parser.add_argument('--data_dir', type=str, default=data_dir)
     parser.add_argument('--out_dir', type=str, default='outputs')
     parser.add_argument('--model', type=str, default='efficientnet_b0')
@@ -43,8 +43,7 @@ def main():
     parser.add_argument('--multitask', action='store_true', help='Enable multi-head (species, health, disease)')
     parser.add_argument('--healthy_keyword', type=str, default='healthy',
                         help="Substring to detect healthy classes (case-insensitive)")
-    parser.add_argument('--health_loss_weight', type=float, default=1.0)  # weight for health CE
-    # (we keep species=1.0 and disease=0.5 by default; tweak below if you want CLIs for these)
+    parser.add_argument('--health_loss_weight', type=float, default=1.0)
 
     # analysis options
     parser.add_argument('--save_hard_examples', action='store_true')

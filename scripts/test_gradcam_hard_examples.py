@@ -16,10 +16,8 @@ from matplotlib import pyplot as plt
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
-# --- project utils ---
 from core.utils import set_seed, get_device, ensure_dir, build_transforms, load_model, parse_floats
 
-# --- your Grad-CAM scripts ---
 from core.gradcam_utils import (
     CamSingleHead,
     resolve_target_layer,
@@ -28,15 +26,8 @@ from core.gradcam_utils import (
 )
 
 
-# =========================
 # Filename parsing helpers
-# =========================
 def parse_labels_from_stem(stem: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Extract 'true=' and 'pred=' labels from a filename stem like:
-      "true=Apple___Black_rot__pred=Apple___Cedar_rust__p=0.932"
-    Returns (true_label, pred_label) or (None, None) if not present.
-    """
     m_true = re.search(r"true=(.*?)(?:__|$)", stem, flags=re.IGNORECASE)
     m_pred = re.search(r"pred=(.*?)(?:__|$)", stem, flags=re.IGNORECASE)
     true_label = m_true.group(1) if m_true else None
@@ -45,10 +36,6 @@ def parse_labels_from_stem(stem: str) -> Tuple[Optional[str], Optional[str]]:
 
 
 def choose_left_title(stem: str, model_pred: str) -> str:
-    """
-    Prefer ground-truth from filename ("true="), else filename's "pred=",
-    else fall back to the model's predicted class.
-    """
     true_label, pred_label = parse_labels_from_stem(stem)
     if true_label:
         return true_label
@@ -57,9 +44,7 @@ def choose_left_title(stem: str, model_pred: str) -> str:
     return model_pred
 
 
-# =========================
 # Plotting helpers
-# =========================
 def _hide_axes(ax):
     ax.set_xticks([]);
     ax.set_yticks([])
@@ -84,15 +69,8 @@ def plot_side_by_side(left_img,
     return fig
 
 
-def plot_triptych(left_img,
-                  mid_img,
-                  probs: np.ndarray,
-                  class_names: List[str],
-                  pred_idx: int,
-                  left_title: str,
-                  mid_title: str = "Grad-CAM Overlay",
-                  topk: int = 5,
-                  main_title: str | None = None):
+def plot_triptych(left_img, mid_img, probs: np.ndarray, class_names: List[str], pred_idx: int,
+                  left_title: str, mid_title: str = "Grad-CAM Overlay", topk: int = 5, main_title: str | None = None):
     """
     Create a 1x3 figure:
       [ ClassName (Original) | Grad-CAM Overlay | Prediction Panel (Top-k bar chart) ]
@@ -137,9 +115,7 @@ def save_fig(fig: "matplotlib.figure.Figure", out_path: Path, dpi: int = 200):
     plt.close(fig)
 
 
-# =========================
 # Image helpers
-# =========================
 def get_canny_edge(img_rgb01: np.ndarray, threshold1: int = 30, threshold2: int = 80) -> np.ndarray:
     """
     Compute white-on-black Canny edges for an RGB float image in [0,1].
@@ -152,9 +128,6 @@ def get_canny_edge(img_rgb01: np.ndarray, threshold1: int = 30, threshold2: int 
     return edge
 
 
-# =========================
-# Main
-# =========================
 def main():
     # ---- Paths ----
     base_path = Path(r"../outputs")

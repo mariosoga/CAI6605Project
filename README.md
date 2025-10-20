@@ -1,93 +1,174 @@
-# Smart Plant Care Assistant (Multi-Task: Species + Health + Disease)
+# Smart Plant Recognition Tool (SPROUT) (Multi-Task: Species + Health + Disease)
 
+---
 This repo trains an EfficientNet backbone with **three heads**:
 
 - **Species** — which plant (Tomato, Apple, …)
 - **Health** — **0 = Sick**, **1 = Healthy**
-- **Disease** — global disease label (includes `"healthy"`)
+- **Disease** — global disease label (includes `"healthy"`, `"sick"`)
 
-> Why: PlantVillage folders are named `Species___Disease`. A single-head classifier learns the combined label and can’t
-> say “Tomato — Healthy”. Multitask fixes that.
+This approach allows the AI system to recognize the species, disease, and whether the plant is healthy or sick (
+this is a derivative classification from the disease head)
 
----
+ ---
 
-## 0) Requirements
+## Quickstart
+
+Below is the main steps to use SPROUT:
 
 ```bash
-pip install torch torchvision timm scikit-learn pytorch-grad-cam
+pip install -r requirements.txt  # Install dependencies
+python build_pv_labels.py # Build label index and vocab
+python scripts/train_and_eval_model.py --data_dir path/to/data --multitask  # Train the model
+python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/apple_scap.jpg" # Run inference
 ```
 
 ---
 
-## 1) Dataset (PlantVillage)
+## 1) Requirements
 
-Point `--data_dir` to your PlantVillage **color** root that looks like:
+The code uses torch torchvision and timm to train, evaluate and test the system. It also uses scikit-learn for
+reporting. Run the command below to install dependencies.
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 2) Dataset
+
+This system utilizes a unified dataset derived from both PlantVillage and PlantDoc sources. The two datasets have been
+merged into a single collection, organized according to the PlantVillage directory structure.
+
+To specify the dataset location, use the `--data_dir` argument and point it to the root of your dataset. For instance,
+the
+current setup uses the color folder within the PlantVillage hierarchy as the root:
 
 ```
 data/plantvillage dataset/color/
-  Tomato___Late_blight/
-  Tomato___healthy/
-  Apple___Black_rot/
-  ...
+  ├── Tomato___Late_blight/
+  ├── Tomato___healthy/
+  ├── Apple___Black_rot/
+  └── ...
 ```
 
 ---
 
-## 2) (Optional) Build a CSV index & vocab
+## 3) Build a CSV index & vocab
 
-This inventories your dataset and writes a CSV plus vocab files—handy for checks and later tooling.
+This step scans your dataset and generates a set of helpful files for inspection and downstream tooling:
+
+- A CSV index of all image paths and labels
+- Vocabulary files for species and diseases
+- Class distribution counts
+  These files are essential if you add new classes to the dataset, as species_list.txt and disease_list.txt are used
+  during both training and evaluation.
+  Run the following script:
 
 ```bash
 python build_pv_labels.py
-# writes to outputs/pv_mtl_labels/:
-#   - labels.csv (path, species_id, disease_id, health, ...)
-#   - species_list.txt
-#   - disease_list.txt
-#   - counts_*.txt
 ```
 
-Health encoding throughout this project is **1 = Healthy, 0 = Sick**.
+This will create the following outputs in outputs/pv_mtl_labels/:
+
+```
+labels.csv           # Contains: path, species_id, disease_id, health, ...
+species_list.txt     # List of all species
+disease_list.txt     # List of all diseases
+counts_*.txt         # Class distribution stats
+```
+
+Throughout this project, health status is encoded as:
+
+- 0 → Healthy
+- 1 → Sick
 
 ---
 
-## 3) Train
+## 4) Train
 
 ### Single-task (legacy, combined disease classes)
 
+The system originally used a single-head classifier that predicted combined species_disease labels. While this coupled
+approach has since evolved into a multi-head architecture with separate outputs for species, disease, and health status,
+single-task mode remains supported for legacy workflows or simpler use cases.
+To run training and evaluation in single-task mode, use the following command:
+
 ```bash
-python train_and_eval_model.py   --data_dir "C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\data\plantvillage dataset\color"   --out_dir outputs --epochs 20   --grad_cam --grad_cam_k 50
+python train_and_eval_model.py --data_dir "C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\data\plantvillage dataset\color"   --out_dir outputs --epochs 20   --grad_cam --grad_cam_k 50
 ```
 
 ### Multitask (species + health + disease) — recommended
 
+This is the recommended mode for running the Smart Plant Care Assistant. It performs training and evaluation using a
+multi-head architecture that predicts species, disease, and health status simultaneously.
+The interface supports a wide range of configurable parameters to give users more control over the training
+process. Below is a complete list of available command-line arguments:
+
+| **Category**                   | **Parameter**            | **Type** | **Default**         | **Description**                                     |
+|--------------------------------|--------------------------|----------|---------------------|-----------------------------------------------------|
+| **General Setup**              | `--data_dir`             | `str`    | *data_dir*          | Path to dataset directory                           |
+|                                | `--out_dir`              | `str`    | `outputs`           | Directory for model outputs and logs                |
+|                                | `--model`                | `str`    | `efficientnet_b0`   | Backbone model architecture                         |
+|                                | `--img_size`             | `int`    | `224`               | Image input size (square)                           |
+|                                | `--batch_size`           | `int`    | `32`                | Number of samples per batch                         |
+|                                | `--epochs`               | `int`    | `10`                | Number of training epochs                           |
+|                                | `--lr`                   | `float`  | `3e-4`              | Learning rate                                       |
+|                                | `--weight_decay`         | `float`  | `1e-4`              | Weight decay (L2 regularization)                    |
+|                                | `--seed`                 | `int`    | `42`                | Random seed for reproducibility                     |
+|                                | `--val_split`            | `float`  | `0.15`              | Fraction of data used for validation                |
+| **Early Stopping & Scheduler** | `--early_stop_patience`  | `int`    | `3`                 | Epochs to wait before stopping if no improvement    |
+|                                | `--early_stop_min_delta` | `float`  | `0.0`               | Minimum delta for improvement recognition           |
+|                                | `--lr_scheduler`         | `str`    | `plateau`           | Learning rate scheduler (`plateau` or `none`)       |
+|                                | `--lr_factor`            | `float`  | `0.5`               | LR reduction factor on plateau                      |
+|                                | `--lr_patience`          | `int`    | `2`                 | Epochs to wait before LR reduction                  |
+|                                | `--lr_min`               | `float`  | `1e-6`              | Minimum learning rate                               |
+| **Multi-Task Learning**        | `--multitask`            | `flag`   | `False`             | Enable multi-head model ( species, health, disease) |
+|                                | `--healthy_keyword`      | `str`    | `healthy`           | Keyword to identify healthy samples                 |
+|                                | `--health_loss_weight`   | `float`  | `1.0`               | Weight for health classification loss               |
+| **Analysis Options**           | `--save_hard_examples`   | `flag`   | `False`             | Save hardest examples for inspection                |
+|                                | `--hard_k`               | `int`    | `50`                | Number of hardest examples to save                  |
+|                                | `--save_confusion_pairs` | `flag`   | `False`             | Save top confusion pairs between classes            |
+|                                | `--pairs_m`              | `int`    | `5`                 | Number of confusion pairs per category              |
+|                                | `--examples_per_pair`    | `int`    | `8`                 | Number of examples per confusion pair               |
+| **Grad-CAM Visualization**     | `--grad_cam`             | `flag`   | `False`             | Enable Grad-CAM overlay generation                  |
+|                                | `--grad_cam_k`           | `int`    | `50`                | Top-K examples per bucket for Grad-CAM              |
+|                                | `--grad_cam_task`        | `str`    | `disease`           | Task to visualize (`disease` or `health`)           |
+|                                | `--grad_cam_layer`       | `str`    | `""`                | Layer to visualize (auto if empty)                  |
+|                                | `--norm_mean`            | `str`    | `0.485,0.456,0.406` | Image normalization mean (CSV)                      |
+|                                | `--norm_std`             | `str`    | `0.229,0.224,0.225` | Image normalization std (CSV)                       |
+|                                | `--cam_alpha`            | `float`  | `0.45`              | Transparency for Grad-CAM overlay                   |
+
+This is an example for running training and evaluation.
+
 ```bash
-python scripts/train_and_eval_model.py   --data_dir "C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\data\plantvillage dataset\color"   --out_dir outputs --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\data\plantvillage dataset\color"   --out_dir outputs --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
 ```
-
-**Notes**
-
-- Backbone: `--model efficientnet_b0` (default, via `timm`)
-- Images are resized to `--img_size 224`, normalized to ImageNet stats by default.
-- Scheduler: `--lr_scheduler plateau` on validation loss.
-- Early stop: `--early_stop_patience 3`.
 
 ---
 
-## 4) Grad-CAM
+## 5) Grad-CAM Visualization
 
-Enable with `--grad_cam`. By default we visualize **disease**; for the health head:
+Grad-CAM (Gradient-weighted Class Activation Mapping) provides visual explanations of what regions in the image most
+influenced the model’s decision.
+This is especially useful for interpreting disease localization and validating model trustworthiness.
+
+Enable Grad-Cam with the ```--grad_cam``` flag:
+
+By default, Grad-CAM visualizes activations for the disease classification head.
+To visualize the health head instead, specify:
+
+```--grad_cam --grad_cam_task health```
+
+Other useful controls:
 
 ```bash
---grad_cam --grad_cam_task health
-```
+--grad_cam_layer ""      # Auto-selects the best conv layer (e.g., EfficientNet's conv_head)
+--norm_mean 0.485,0.456,0.406   # Image normalization mean (CSV format)
+--norm_std  0.229,0.224,0.225   # Image normalization std (CSV format)
+--cam_alpha 0.45                # Overlay transparency (0 = image only, 1 = heatmap only)
 
-Other useful knobs:
-
-```bash
---grad_cam_layer ""      # auto: EfficientNet conv_head
---norm_mean 0.485,0.456,0.406
---norm_std  0.229,0.224,0.225
---cam_alpha 0.45
 ```
 
 **Outputs**
@@ -97,7 +178,7 @@ Other useful knobs:
 
 ---
 
-## 5) Artifacts
+## 6) Artifacts
 
 Under `--out_dir`:
 
@@ -118,7 +199,13 @@ Under `--out_dir`:
 
 ---
 
-## 5.2) test model
+## 7) Test
+
+SPROUT does not include testing within the training-evaluation pipeline by design. Separating testing allows
+the independent inspection and comparison of metrics from both the evaluation and testing stages.
+
+To run testing, place your test images in a separate folder and point data_dir to that location, and ckpt to the
+location of the trained model check point:
 
 ```bash
 python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/plantvillage dataset/test"
@@ -126,32 +213,32 @@ python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/plantvillag
 
 ---
 
-## 6) Inference (pretty output)
+## 8) Inference
 
 #### Single image:
 
+You can run inference on individual images using the trained model checkpoint. This is useful for quick predictions or
+testing the model on new samples.
+
+Alternatively you can run inference on a folder of images by using `--image_dir` instead of `--image_path`
+
+You may Use one of the following:
+
 ```bash
-python test_infer.py --ckpt outputs/best.pt --image "data/test/grape_ecsa.jpg"
+#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/apple_scap.jpg"
+#or
+#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/tomato_early_blight.jpg"
+#or
+#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/bacterial_spot_tomato.jpg"
+python scripts/test_infer.py --ckpt outputs/best.pt --image_dir "data/infer"
 
 ```
----
-
-#### Folder of images (recursively):
-
-```bash
-python test_infer.py --ckpt outputs/best.pt --image_dir "data/plantvillage dataset/test"
-
-```
 
 ---
 
-## 7) Tips & Troubleshooting
+## 9) Tips & Troubleshooting
 
 - **Health labels**: Everywhere we assume **0=Sick, 1=Healthy**. Binary reports use labels `('Sick','Healthy')`.
 - **Class imbalance**: Consider class weights for species/disease heads.
-- **Generalization**: PlantVillage is studio-like; for field photos, use stronger augs or test on more realistic sets.
 - **Determinism**: use `set_seed(...)` and `seed_worker` in DataLoaders for reproducibility (see `core/utils.py`).
 
-## 9) License
-
-MIT (or your choice).
