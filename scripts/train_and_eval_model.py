@@ -17,7 +17,7 @@ from core.utils import set_seed, get_device, ensure_dir, parse_floats
 
 
 def main():
-    data_dir = r"/data/plantvillage dataset/color"
+    data_dir = r"/data/dataset/color"
 
     parser = argparse.ArgumentParser(description="Smart Plant Observation Tool — Training Entry (Multi-task)")
     parser.add_argument('--data_dir', type=str, default=data_dir)

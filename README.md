@@ -18,7 +18,7 @@ Below is the main steps to use SPROUT:
 
 ```bash
 pip install -r requirements.txt  # Install dependencies
-python build_pv_labels.py # Build label index and vocab
+python scripts/build_pv_labels.py # Build label index and vocab
 python scripts/train_and_eval_model.py --data_dir path/to/data --multitask  # Train the model
 python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/apple_scap.jpg" # Run inference
 ```
@@ -96,7 +96,7 @@ single-task mode remains supported for legacy workflows or simpler use cases.
 To run training and evaluation in single-task mode, use the following command:
 
 ```bash
-python train_and_eval_model.py --data_dir "C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\data\plantvillage dataset\color"   --out_dir outputs --epochs 20   --grad_cam --grad_cam_k 50
+python train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs --epochs 20   --grad_cam --grad_cam_k 50
 ```
 
 ### Multitask (species + health + disease) — recommended
@@ -143,7 +143,7 @@ process. Below is a complete list of available command-line arguments:
 This is an example for running training and evaluation.
 
 ```bash
-python scripts/train_and_eval_model.py --data_dir "C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\data\plantvillage dataset\color"   --out_dir outputs --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
 ```
 
 ---
@@ -168,7 +168,6 @@ Other useful controls:
 --norm_mean 0.485,0.456,0.406   # Image normalization mean (CSV format)
 --norm_std  0.229,0.224,0.225   # Image normalization std (CSV format)
 --cam_alpha 0.45                # Overlay transparency (0 = image only, 1 = heatmap only)
-
 ```
 
 **Outputs**
@@ -208,7 +207,7 @@ To run testing, place your test images in a separate folder and point data_dir t
 location of the trained model check point:
 
 ```bash
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/plantvillage dataset/test"
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test"
 ```
 
 ---

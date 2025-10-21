@@ -1,25 +1,12 @@
-"""
-Step 1: Inventory PlantVillage into multi-task labels without moving files.
-
-Outputs (under outputs/pv_mtl_labels):
-  - species_list.txt
-  - disease_list.txt
-  - labels.csv  (path,species,species_id,disease,disease_id,health,orig_class)
-  - counts_species.txt
-  - counts_health.txt
-
-Health encoding: 1 = Healthy, 0 = Sick
-"""
-
 from pathlib import Path
 from collections import Counter
 import csv
 
-# --- EDIT THIS to your dataset root ---
-DATA_ROOT = Path(r"C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\data\plantvillage dataset\color")
+# Dataset root
+DATA_ROOT = Path(r"data/dataset/color")
 
-# Where to write artifacts
-OUT_DIR = Path(r"C:\Users\y-pol\PyCharmMiscProject\plant_care_assistant\outputs\pv_mtl_labels")
+# Where to write labels
+OUT_DIR = Path(r"outputs/pv_mtl_labels")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Image extensions to include
