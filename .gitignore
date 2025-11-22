@@ -5,3 +5,5 @@
 data/dataset/grayscale
 
 data/dataset/segmented
+.DS_Store
+__pycache__/
