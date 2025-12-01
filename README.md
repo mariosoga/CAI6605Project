@@ -67,7 +67,7 @@ This step scans your dataset and generates a set of helpful files for inspection
   Run the following script:
 
 ```bash
-python build_pv_labels.py
+python scripts/build_pv_labels.py
 ```
 
 This will create the following outputs in outputs/pv_mtl_labels/:
@@ -96,7 +96,7 @@ single-task mode remains supported for legacy workflows or simpler use cases.
 To run training and evaluation in single-task mode, use the following command:
 
 ```bash
-python train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs --epochs 20   --grad_cam --grad_cam_k 50
+python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs --epochs 20   --grad_cam --grad_cam_k 50
 ```
 
 ### Multitask (species + health + disease) — recommended
