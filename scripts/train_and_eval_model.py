@@ -17,10 +17,10 @@ from core.utils import set_seed, get_device, ensure_dir, parse_floats
 
 
 def main():
-    data_dir = r"/data/dataset/color"
+    # data_dir = r"/data/dataset/color"
 
     parser = argparse.ArgumentParser(description="Smart Plant Observation Tool — Training Entry (Multi-task)")
-    parser.add_argument('--data_dir', type=str, default=data_dir)
+    parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='outputs')
     parser.add_argument('--model', type=str, default='efficientnet_b0')
     parser.add_argument('--img_size', type=int, default=224)
@@ -221,17 +221,17 @@ def main():
     # Reports (use disease for multiclass report)
     # -----------------------
     # Instantiate once per evaluation run (you can pass a default prefix like 'disease_' or 'species_')
-    reporter = EvaluationReporter(out_dir / "run_001")
+    reporter = EvaluationReporter(out_dir / "run_fsgm")
 
     # Multiclass report + CM + CSV
-    reporter.write_classification_report(y_true_d, y_pred_d, class_names=class_names,
+    reporter.write_classification_report(y_true_d, y_pred_d, class_names=disease_list,
                                          out_name="classification_report_disease.txt")
 
 
-    reporter.save_confusion_matrix_img(y_true_d, y_pred_d, class_names=class_names,
+    reporter.save_confusion_matrix_img(y_true_d, y_pred_d, class_names=disease_list,
                                        prefix="disease_")  # uses default_prefix
 
-    reporter.export_val_predictions_csv(records_d, class_names=class_names, out_name="val_predictions_disease.csv")
+    reporter.export_val_predictions_csv(records_d, class_names=disease_list, out_name="val_predictions_disease.csv")
 
     # --- Health binary report (if multitask) ---
     if args.multitask and y_true_h is not None and y_pred_h is not None:
@@ -250,7 +250,7 @@ def main():
     # --- Hard examples ---
     if args.save_hard_examples:
         # Hard examples
-        reporter.save_hard_examples(records_d, class_names=class_names, k=args.hard_k, prefix="disease_")
+        reporter.save_hard_examples(records_d, class_names=disease_list, k=args.hard_k, prefix="disease_")
 
         if args.multitask:
             reporter.save_hard_examples_binary(records_h, k=args.hard_k)  # binary
@@ -259,7 +259,7 @@ def main():
 
     if args.save_confusion_pairs:
         reporter.save_top_confusion_pairs(
-            y_true_d, y_pred_d, class_names=class_names, records=records_d, m=args.pairs_m, examples_per_pair=args.examples_per_pair)
+            y_true_d, y_pred_d, class_names=disease_list, records=records_d, m=args.pairs_m, examples_per_pair=args.examples_per_pair)
 
     # -----------------------
     # Grad-CAM on hard examples

@@ -1,2 +1,2 @@
-Healthy(1)	15806
-Sick(0)	40741
+Healthy(1)	16359
+Sick(0)	41749

@@ -3,7 +3,7 @@ from collections import Counter
 import csv
 
 # Dataset root
-DATA_ROOT = Path(r"data/dataset/color")
+DATA_ROOT = Path(r"data/dataset/augmented_dataset")
 
 # Where to write labels
 OUT_DIR = Path(r"outputs/pv_mtl_labels")

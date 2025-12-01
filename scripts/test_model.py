@@ -1,22 +1,18 @@
 # test_model.py
 import argparse
-import csv
-import json
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 
 import numpy as np
 import torch
-from sympy.testing.runtests import Reporter
 from torch.utils.data import DataLoader
 
 # Project imports
 from core.data import FolderLabeledDataset
 from core.evaluation_reporter import EvaluationReporter
 from core.report import (
-    write_classification_report, write_binary_report,
-    save_confusion_matrix_img
+    write_classification_report, save_confusion_matrix_img
 )
 from core.utils import get_device, ensure_dir, set_seed, parse_floats, load_model
 
@@ -157,7 +153,8 @@ def infer_and_eval_multitask(
         health_labels: Optional[List[str]] = None,
         topk: int = 3,
 ) -> Tuple[
-    np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]], Dict[str, int]]:
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]], Dict[
+        str, int]]:
     """
     Multitask heads: species (multiclass), health (binary), disease (multiclass)
     """
@@ -179,6 +176,7 @@ def infer_and_eval_multitask(
     y_pred_h: List[int] = []
     y_true_s: List[int] = []
     y_pred_s: List[int] = []
+    dz_conf_list: List[float] = []
 
     stats = {
         "seen": 0,
@@ -251,6 +249,8 @@ def infer_and_eval_multitask(
             y_true_s.append(gt_sp_idx)
             y_pred_s.append(sp0)
 
+            dz_conf_list.append(dz_top_confs[0])  # confidence of top predicted disease class
+
             rows.append({
                 "path": str(p),
 
@@ -276,7 +276,7 @@ def infer_and_eval_multitask(
     y_pred_s_arr = np.array(y_pred_s, dtype=int)
     y_true_s_arr = np.array(y_true_s, dtype=int)
 
-    return y_true_d_arr, y_pred_d_arr, y_true_h_arr, y_pred_h_arr, y_true_s_arr, y_pred_s_arr, rows, stats
+    return y_true_d_arr, y_pred_d_arr, dz_conf_list, y_true_h_arr, y_pred_h_arr, y_true_s_arr, y_pred_s_arr, rows, stats
 
 
 # ---------- Main ----------
@@ -325,7 +325,7 @@ def main():
         )
         dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
-        y_true_d, y_pred_d, y_true_h, y_pred_h, y_true_s, y_pred_s, rows, stats = infer_and_eval_multitask(
+        y_true_d, y_pred_d, dz_conf_list, y_true_h, y_pred_h, y_true_s, y_pred_s, rows, stats = infer_and_eval_multitask(
             model, dl, device,
             species_list=species_list,
             disease_list=disease_list,
@@ -354,6 +354,10 @@ def main():
         rpt_h = reporter.write_classification_report(y_true_h, y_pred_h, health_labels, "test_report_health.txt")
         print(rpt_h)
 
+        ece_disease = compute_ece(dz_conf_list, y_pred_d, y_true_d, 8, out_dir)
+        print(f"ECE (Disease Head): {ece_disease:.4f}")
+
+
     else:
         if not class_names:
             raise RuntimeError("Checkpoint missing 'class_names' for single-task evaluation.")
@@ -376,6 +380,43 @@ def main():
 
         print("Eval artifacts in", out_dir)
         print(f"Stats: seen={stats['seen']}, skipped_unknown_truth={stats['skipped_unknown_truth']}")
+
+
+def compute_ece(y_probs, y_preds, y_true, n_bins=10, save_path: Path = None):
+    import numpy as np
+
+    y_probs = np.array(y_probs)
+    y_preds = np.array(y_preds)
+    y_true = np.array(y_true)
+
+    bin_boundaries = np.linspace(0, 1, n_bins + 1)
+    ece = 0.0
+    total = len(y_true)
+
+    lines = ["Bin\tConfidence\tAccuracy\tSamples"]
+
+    for i in range(n_bins):
+        start, end = bin_boundaries[i], bin_boundaries[i + 1]
+        mask = (y_probs >= start) & (y_probs < end)
+        bin_size = np.sum(mask)
+
+        if bin_size > 0:
+            acc = np.mean(y_preds[mask] == y_true[mask])
+            conf = np.mean(y_probs[mask])
+            ece += (bin_size / total) * abs(acc - conf)
+            lines.append(f"{i + 1}\t{conf:.4f}\t{acc:.4f}\t{bin_size}")
+
+    lines.append(f"\nExpected Calibration Error (ECE): {ece:.4f}")
+    print("\n".join(lines))
+
+    if not save_path.exists():
+        save_path.mkdir(parents=True)
+
+    with open(save_path / "ece_report.txt", "w") as f:
+        f.write("\n".join(lines))
+    print(f"ECE report saved to {save_path}")
+
+    return ece
 
 
 if __name__ == "__main__":

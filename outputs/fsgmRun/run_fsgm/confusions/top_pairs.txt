@@ -1,0 +1,5 @@
+Cercospora_leaf_spot Gray_leaf_spot -> Northern_Leaf_Blight: 19 / 90 (21.1%)
+Early_blight -> Late_blight: 10 / 350 (2.9%)
+Early_blight -> Bacterial_spot: 6 / 350 (1.7%)
+Septoria_leaf_spot -> Bacterial_spot: 6 / 301 (2.0%)
+Bacterial_spot -> Septoria_leaf_spot: 5 / 847 (0.6%)

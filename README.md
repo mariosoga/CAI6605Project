@@ -143,7 +143,9 @@ process. Below is a complete list of available command-line arguments:
 This is an example for running training and evaluation.
 
 ```bash
-python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_dataset"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+
 ```
 
 ---
@@ -207,7 +209,10 @@ To run testing, place your test images in a separate folder and point data_dir t
 location of the trained model check point:
 
 ```bash
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test"
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test" --out_dir "outputs/fsgm_test"
+python scripts/test_model.py --ckpt outputs/fsgmRun/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/after_at"
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/before_at"
+
 ```
 
 ---
@@ -240,4 +245,8 @@ python scripts/test_infer.py --ckpt outputs/best.pt --image_dir "data/infer"
 - **Health labels**: Everywhere we assume **0=Sick, 1=Healthy**. Binary reports use labels `('Sick','Healthy')`.
 - **Class imbalance**: Consider class weights for species/disease heads.
 - **Determinism**: use `set_seed(...)` and `seed_worker` in DataLoaders for reproducibility (see `core/utils.py`).
+
+```bash
+python scripts/pgm_train_evaluate.py
+```
 
