@@ -264,12 +264,14 @@ Other useful controls:
 - Uncertain correct CAMs:   `outputs/hard_examples/uncertain_correct_cam/`
 
 
-### 2) Reliability and Robustness: FGSM Attack
+### 2) Reliability and Robustness: 
+
+####  Robustness: FGSM Attack and Adversarial Training
 
 Fast Gradient Sign Method (FGSM) is a technique used to generate adversarial examples that can deliberately fool machine learning models.
 
 The code that generates these preturbed adversarial images can be found in ```fgsm.py```:
- 
+
 - In this script, we import images from the parameter passed folder and create the adversarial images with different levels of preturbations (epsilons). The generated images can be found in the `outputs/fgsm_test/` folder. Each different epsilon has its folder folder containing the images.
 - This code also tests and outputs the accuracy of the model using these newly created images.
 
@@ -281,3 +283,14 @@ The code that generates these preturbed adversarial images can be found in ```fg
 - **outputs/best.pt:** the current best model with updated weights
 - **data/dataset/test:** Source of the images that will  be preturbed
 - **outputs/fgsm_test:** Output folder of newly created FGSM-preturbed images
+
+
+####  Reliability: ECE (Expected Calibration Error)
+
+ECE (Expected Calibration Error) is a metric used to measure the "honesty" or reliability of a machine learning model's confidence scores. ECE calculates the weighted average difference between the Confidence (what the model thinks) and the Accuracy (what actually happened).
+
+The ```compute_ece``` function  found on ```test_model.py``` calculates two averages:
+- conf: Average confidence of predictions in this bin
+- acc: Actual accuracy in this bin
+
+It takes the absolute difference of these and weights it by how many samples were in that bin. This information is gathered when we test the model.
