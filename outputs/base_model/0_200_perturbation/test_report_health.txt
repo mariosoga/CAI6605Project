@@ -1,0 +1,8 @@
+              precision    recall  f1-score   support
+
+        Sick     0.9988    0.9971    0.9980     40882
+     Healthy     0.9927    0.9969    0.9948     15885
+
+    accuracy                         0.9971     56767
+   macro avg     0.9957    0.9970    0.9964     56767
+weighted avg     0.9971    0.9971    0.9971     56767

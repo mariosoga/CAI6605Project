@@ -200,24 +200,16 @@ def make_datasets(
     train_tf = build_transforms(img_size, "train")
     val_tf = build_transforms(img_size, "val")
 
-    if multitask:
-        train_ds = MultiTaskImageFolder(root=str(data_dir), transform=train_tf, healthy_keyword=healthy_keyword)
-        val_ds = MultiTaskImageFolder(root=str(data_dir), transform=val_tf, healthy_keyword=healthy_keyword)
+    train_ds = MultiTaskImageFolder(root=str(data_dir), transform=train_tf, healthy_keyword=healthy_keyword)
+    val_ds = MultiTaskImageFolder(root=str(data_dir), transform=val_tf, healthy_keyword=healthy_keyword)
 
-        # For heads: len(train_ds.species_list), len(train_ds.disease_list), health=2
-        # Stratify by species by default (better coverage than orig_class)
-        train_sampler, val_sampler = stratified_samplers(train_ds, val_split, seed, stratify_on)
+    # For heads: len(train_ds.species_list), len(train_ds.disease_list), health=2
+    # Stratify by species by default (better coverage than orig_class)
+    train_sampler, val_sampler = stratified_samplers(train_ds, val_split, seed, stratify_on)
 
-        # idx_to_class: original combined labels
-        class_to_idx = train_ds.class_to_idx
-        idx_to_class = {v: k for k, v in class_to_idx.items()}
-    else:
-        tmp_ds = datasets.ImageFolder(root=str(data_dir), transform=train_tf)
-        class_to_idx = tmp_ds.class_to_idx
-        idx_to_class = {v: k for k, v in class_to_idx.items()}
-        train_sampler, val_sampler = stratified_samplers(tmp_ds, val_split, seed, "orig_class")
-        train_ds = ImageFolderWithPaths(root=str(data_dir), transform=train_tf)
-        val_ds = ImageFolderWithPaths(root=str(data_dir), transform=val_tf)
+    # idx_to_class: original combined labels
+    class_to_idx = train_ds.class_to_idx
+    idx_to_class = {v: k for k, v in class_to_idx.items()}
 
     return train_ds, val_ds, train_sampler, val_sampler, idx_to_class
 

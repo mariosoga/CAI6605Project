@@ -1,0 +1,5 @@
+Early_blight -> Late_blight: 16 / 321 (5.0%)
+Northern_Leaf_Blight -> Cercospora_leaf_spot Gray_leaf_spot: 12 / 169 (7.1%)
+Bacterial_spot -> Septoria_leaf_spot: 8 / 861 (0.9%)
+Apple_scab -> healthy: 6 / 130 (4.6%)
+Cercospora_leaf_spot Gray_leaf_spot -> Northern_Leaf_Blight: 6 / 93 (6.5%)

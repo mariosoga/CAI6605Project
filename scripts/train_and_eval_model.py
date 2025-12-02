@@ -4,20 +4,20 @@ from pathlib import Path
 
 import timm
 import torch
+
 from torch import nn
 
 from core.PlantModel import MultiTaskEffNet
 from core.data import make_datasets, build_loaders
 from core.early_stop import EarlyStopper
-from core.evaluate import evaluate, evaluate_mtl  # <-- use evaluate_mtl (3-head)
+from core.evaluate import evaluate_mtl  # <-- use evaluate_mtl (3-head)
 from core.evaluation_reporter import EvaluationReporter
 from core.gradcam_utils import run_gradcam_for_hard_examples
-from core.train import train, train_mtl  # <-- use train_mtl (3-head). keep train for single-task fallback
+from core.train import train_mtl  # <-- use train_mtl (3-head). keep train for single-task fallback
 from core.utils import set_seed, get_device, ensure_dir, parse_floats
 
 
 def main():
-    # data_dir = r"/data/dataset/color"
 
     parser = argparse.ArgumentParser(description="Smart Plant Observation Tool — Training Entry (Multi-task)")
     parser.add_argument('--data_dir', type=str, required=True)
@@ -138,56 +138,43 @@ def main():
     for epoch in range(1, args.epochs + 1):
         prev_lr = optimizer.param_groups[0]['lr']
 
-        if args.multitask:
-            # Train (3-head). Weights: species=1.0, health=args.health_loss_weight, disease=0.5
-            train_metrics = train_mtl(
-                model, t_loader, optimizer, device,
-                w_species=1.0, w_health=args.health_loss_weight, w_disease=0.5, use_amp=True
-            )
-            # Validate
-            val_metrics = evaluate_mtl(
-                model, v_loader, species_criterion, health_criterion, disease_criterion, device,
-                w_species=1.0, w_health=args.health_loss_weight, w_disease=0.5
-            )
+        # Train (3-head). Weights: species=1.0, health=args.health_loss_weight, disease=0.5
+        train_metrics = train_mtl(
+            model, t_loader, optimizer, device,
+            w_species=1.0, w_health=args.health_loss_weight, w_disease=0.5, use_amp=True
+        )
+        # Validate
+        val_metrics = evaluate_mtl(
+            model, v_loader, species_criterion, health_criterion, disease_criterion, device,
+            w_species=1.0, w_health=args.health_loss_weight, w_disease=0.5
+        )
 
-            v_loss = val_metrics["loss"]
-            val_acc_d = val_metrics["disease"]["acc_overall"]
-            val_acc_h = val_metrics["health"]["acc"]
+        v_loss = val_metrics["loss"]
+        val_acc_d = val_metrics["disease"]["acc_overall"]
+        val_acc_h = val_metrics["health"]["acc"]
 
-            # keep for reports & gradcam
-            records_d = val_metrics["disease"]["records"]
-            records_h = val_metrics["health"]["records"]
-            records_s = val_metrics["species"]["records"]
-            y_true_d, y_pred_d = val_metrics["disease"]["y_true"], val_metrics["disease"]["y_pred"]
-            y_true_h, y_pred_h = val_metrics["health"]["y_true"], val_metrics["health"]["y_pred"]
-            y_true_s, y_pred_s = val_metrics["species"]["y_true"], val_metrics["species"]["y_pred"]
+        # keep for reports & gradcam
+        records_d = val_metrics["disease"]["records"]
+        records_h = val_metrics["health"]["records"]
+        records_s = val_metrics["species"]["records"]
+        y_true_d, y_pred_d = val_metrics["disease"]["y_true"], val_metrics["disease"]["y_pred"]
+        y_true_h, y_pred_h = val_metrics["health"]["y_true"], val_metrics["health"]["y_pred"]
+        y_true_s, y_pred_s = val_metrics["species"]["y_true"], val_metrics["species"]["y_pred"]
 
-            cur_lr = optimizer.param_groups[0]['lr']
-            print(
-                f"Epoch {epoch:02d}/{args.epochs} | lr={cur_lr:.2e} | "
-                f"train_loss={train_metrics['loss']:.4f} "
-                f"(sp={train_metrics['species_acc']:.3f} hl={train_metrics['health_acc']:.3f} "
-                f"dz_all={train_metrics['disease_acc_overall']:.3f} dz_sick={train_metrics['disease_acc_sick_only']:.3f}) | "
-                f"val_loss={v_loss:.4f} "
-                f"(sp={val_metrics['species']['acc']:.3f} hl={val_acc_h:.3f} "
-                f"dz_all={val_acc_d:.3f} dz_sick={val_metrics['disease']['acc_sick_only']:.3f}) | "
-                f"elapsed={time.time() - start_time:.2f}s"
-            )
+        cur_lr = optimizer.param_groups[0]['lr']
+        print(
+            f"Epoch {epoch:02d}/{args.epochs} | lr={cur_lr:.2e} | "
+            f"train_loss={train_metrics['loss']:.4f} "
+            f"(sp={train_metrics['species_acc']:.3f} hl={train_metrics['health_acc']:.3f} "
+            f"dz_all={train_metrics['disease_acc_overall']:.3f} dz_sick={train_metrics['disease_acc_sick_only']:.3f}) | "
+            f"val_loss={v_loss:.4f} "
+            f"(sp={val_metrics['species']['acc']:.3f} hl={val_acc_h:.3f} "
+            f"dz_all={val_acc_d:.3f} dz_sick={val_metrics['disease']['acc_sick_only']:.3f}) | "
+            f"elapsed={time.time() - start_time:.2f}s"
+        )
 
-            # choose disease acc for checkpointing (same behavior as before)
-            val_acc = val_acc_d
-
-        else:
-            # Single-task (legacy)
-            t_loss, train_acc = train(model, t_loader, criterion, optimizer, device)
-            v_loss, val_acc, y_true_d, y_pred_d, records_d = evaluate(model, v_loader, criterion, device)
-            cur_lr = optimizer.param_groups[0]['lr']
-            print(
-                f"Epoch {epoch:02d}/{args.epochs} | lr={cur_lr:.2e} | "
-                f"train_loss={t_loss:.4f} acc={train_acc:.4f} | "
-                f"val_loss={v_loss:.4f} acc={val_acc:.4f} | "
-                f"elapsed={time.time() - start_time:.2f}s"
-            )
+        # choose disease acc for checkpointing (same behavior as before)
+        val_acc = val_acc_d
 
         # Scheduler step
         if scheduler is not None:
@@ -234,7 +221,7 @@ def main():
     reporter.export_val_predictions_csv(records_d, class_names=disease_list, out_name="val_predictions_disease.csv")
 
     # --- Health binary report (if multitask) ---
-    if args.multitask and y_true_h is not None and y_pred_h is not None:
+    if y_true_h is not None and y_pred_h is not None:
         # Binary report + CSV
         reporter.write_binary_report(y_true_h, y_pred_h, out_name="classification_report_health.txt")
         reporter.export_val_predictions_csv_binary(records_h, out_name="val_predictions_health.csv")

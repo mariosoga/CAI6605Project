@@ -3,58 +3,6 @@ import torch
 
 
 @torch.no_grad()
-def evaluate(model, loader, criterion, device):
-    """Single-head (legacy) evaluation for (img, class_idx, path, idx) loaders."""
-    model.eval()
-    running_loss, correct, total = 0.0, 0, 0
-    y_true_all, y_pred_all = [], []
-    records = []
-
-    for batch in loader:
-        imgs, labels, paths, *_ = batch
-        imgs = imgs.to(device)
-        labels = labels.to(device)
-
-        outputs = model(imgs)
-        loss = criterion(outputs, labels)
-        probs = torch.softmax(outputs, dim=1)
-
-        running_loss += loss.item() * imgs.size(0)
-        preds = outputs.argmax(dim=1)
-        correct += (preds == labels).sum().item()
-        total += labels.size(0)
-
-        top2_probs, top2_idx = torch.topk(probs, k=min(2, probs.size(1)), dim=1)
-        bs = imgs.size(0)
-        for i in range(bs):
-            t = int(labels[i].item())
-            p = int(preds[i].item())
-            pr_true = float(probs[i, t].item())
-            pr_pred = float(probs[i, p].item())
-            # handle 1-class edge case
-            if probs.size(1) > 1:
-                t2i = int(top2_idx[i, 1].item())
-                t2p = float(top2_probs[i, 1].item())
-            else:
-                t2i, t2p = p, pr_pred
-            records.append({
-                "path": paths[i],
-                "true_idx": t,
-                "pred_idx": p,
-                "pred_conf": pr_pred,
-                "true_conf": pr_true,
-                "top2_idx": t2i,
-                "top2_conf": t2p,
-            })
-            y_true_all.append(t)
-            y_pred_all.append(p)
-
-    val_loss = running_loss / total if total > 0 else 0.0
-    acc = correct / total if total > 0 else 0.0
-    return val_loss, acc, np.array(y_true_all), np.array(y_pred_all), records
-
-
-@torch.no_grad()
 def evaluate_mtl(model,
                  loader,
                  species_criterion,

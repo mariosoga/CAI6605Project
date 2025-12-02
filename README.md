@@ -141,11 +141,17 @@ process. Below is a complete list of available command-line arguments:
 |                                | `--cam_alpha`            | `float`  | `0.45`              | Transparency for Grad-CAM overlay                   |
 
 This is an example for running training and evaluation.
+##python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+##python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_dataset"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
 
 ```bash
-python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
-python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_dataset"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
-
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.000"   --out_dir outputs/fsgmRun/eps_0.000 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.050"   --out_dir outputs/fsgmRun/eps_0.050 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.100"   --out_dir outputs/fsgmRun/eps_0.100 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.150"   --out_dir outputs/fsgmRun/eps_0.150 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.200"   --out_dir outputs/fsgmRun/eps_0.200 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.250"   --out_dir outputs/fsgmRun/eps_0.250 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300"   --out_dir outputs/fsgmRun/eps_0.300 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
 ```
 
 ---
@@ -212,6 +218,9 @@ location of the trained model check point:
 python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test" --out_dir "outputs/fsgm_test"
 python scripts/test_model.py --ckpt outputs/fsgmRun/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/after_at"
 python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/before_at"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.000/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.000" --out_dir "outputs/base_eps0"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.300/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300" --out_dir "outputs/base_eps0.300"
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.200" --out_dir "outputs/base_model/0_200_perturbation"
 
 ```
 
@@ -247,6 +256,6 @@ python scripts/test_infer.py --ckpt outputs/best.pt --image_dir "data/infer"
 - **Determinism**: use `set_seed(...)` and `seed_worker` in DataLoaders for reproducibility (see `core/utils.py`).
 
 ```bash
-python scripts/pgm_train_evaluate.py
+python scripts/create_fgsm_datasets.py
 ```
 

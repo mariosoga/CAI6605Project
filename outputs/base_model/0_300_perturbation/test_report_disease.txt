@@ -1,0 +1,29 @@
+                                      precision    recall  f1-score   support
+
+                          Apple_scab     0.9942    0.9582    0.9759       718
+                      Bacterial_spot     0.9960    0.9888    0.9924      5526
+                           Black_rot     0.9973    0.9860    0.9916      1861
+                    Cedar_apple_rust     0.9928    1.0000    0.9964       275
+ Cercospora_leaf_spot Gray_leaf_spot     0.9116    0.9704    0.9401       574
+                         Common_rust     0.9781    0.9923    0.9852      1304
+                        Early_blight     0.9801    0.9654    0.9727      2198
+                Esca_(Black_Measles)     0.9964    0.9964    0.9964      1383
+     Haunglongbing_(Citrus_greening)     0.9998    1.0000    0.9999      5507
+                         Late_blight     0.9871    0.9821    0.9846      3123
+                           Leaf_Mold     0.9806    0.9730    0.9768      1037
+  Leaf_blight_(Isariopsis_Leaf_Spot)     1.0000    0.9981    0.9991      1076
+                         Leaf_scorch     1.0000    1.0000    1.0000      1109
+                           Leaf_spot     0.9268    0.6032    0.7308        63
+                        Mosaic_virus     0.9430    0.9297    0.9363       427
+                Northern_Leaf_Blight     0.9847    0.9360    0.9597      1171
+                      Powdery_mildew     1.0000    0.9954    0.9977      3013
+                           Rust_leaf     0.5950    0.8372    0.6957        86
+                  Septoria_leaf_spot     0.9575    0.9750    0.9662      1919
+Spider_mites Two-spotted_spider_mite     0.9982    0.9994    0.9988      1676
+                         Target_Spot     0.9986    0.9964    0.9975      1404
+              Yellow_Leaf_Curl_Virus     0.9842    0.9963    0.9902      5432
+                             healthy     0.9923    0.9955    0.9939     15885
+
+                            accuracy                         0.9891     56767
+                           macro avg     0.9650    0.9598    0.9599     56767
+                        weighted avg     0.9894    0.9891    0.9892     56767

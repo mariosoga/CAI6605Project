@@ -3,30 +3,6 @@ import torch.nn.functional as F
 from torch.cuda.amp import autocast, GradScaler
 
 # -----------------------------
-# single-task
-# -----------------------------
-def train(model, loader, criterion, optimizer, device):
-    model.train()
-    running_loss, correct, total = 0.0, 0, 0
-    for imgs, labels, *_ in loader:
-        imgs = imgs.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
-
-        optimizer.zero_grad(set_to_none=True)
-        outputs = model(imgs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
-        bs = imgs.size(0)
-        running_loss += float(loss.item()) * bs
-        preds = outputs.argmax(dim=1)
-        correct += (preds == labels).sum().item()
-        total += bs
-
-    return running_loss / total, correct / total
-
-# -----------------------------
 # Multi-task (3 heads): species, health, disease
 # health target convention: 1 = Healthy, 0 = Sick
 # -----------------------------

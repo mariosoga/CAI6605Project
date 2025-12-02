@@ -1,0 +1,5 @@
+Northern_Leaf_Blight -> Cercospora_leaf_spot Gray_leaf_spot: 12 / 169 (7.1%)
+Cercospora_leaf_spot Gray_leaf_spot -> Northern_Leaf_Blight: 9 / 93 (9.7%)
+Early_blight -> Late_blight: 9 / 321 (2.8%)
+Leaf_spot -> healthy: 7 / 11 (63.6%)
+Black_rot -> healthy: 6 / 270 (2.2%)

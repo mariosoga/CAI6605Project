@@ -11,9 +11,6 @@ from torch.utils.data import DataLoader
 # Project imports
 from core.data import FolderLabeledDataset
 from core.evaluation_reporter import EvaluationReporter
-from core.report import (
-    write_classification_report, save_confusion_matrix_img
-)
 from core.utils import get_device, ensure_dir, set_seed, parse_floats, load_model
 
 # ---------- Helpers for robust label matching ----------
@@ -81,65 +78,6 @@ def _fmt_topk(idxs: List[int], confs: List[float], names: List[str]) -> str:
         name = names[i] if 0 <= i < len(names) else f"<{i}>"
         out.append(f"{name} ({c:.3f})")
     return " | ".join(out)
-
-
-# ---------- Inference (single-task) ----------
-
-@torch.no_grad()
-def infer_and_eval_single(
-        model,
-        loader: DataLoader,
-        device: torch.device,
-        class_names: List[str],
-        topk: int = 3,
-) -> Tuple[np.ndarray, np.ndarray, List[Dict[str, Any]], Dict[str, int]]:
-    rows: List[Dict[str, Any]] = []
-    y_true: List[int] = []
-    y_pred: List[int] = []
-    stats = {
-        "seen": 0,
-        "skipped_unknown_truth": 0,
-    }
-
-    class_norm_to_name, class_name_to_idx = _build_norm_maps(class_names)
-
-    for batch, paths, truth in loader:
-        batch = batch.to(device, non_blocking=True)
-        logits = model(batch)
-        prob = torch.softmax(logits, dim=-1)
-
-        idxs, confs = _topk(prob, k=topk)
-
-        for i, p in enumerate(paths):
-            stats["seen"] += 1
-
-            top_idxs = idxs[i].tolist()
-            top_confs = [float(x) for x in confs[i].tolist()]
-            pred_idx = int(top_idxs[0])
-            pred_name = class_names[pred_idx] if 0 <= pred_idx < len(class_names) else f"<{pred_idx}>"
-
-            # Ground truth from dataset
-            gt_raw = truth["combined"][i]
-            gt_idx = _find_idx_from_norm(gt_raw, class_norm_to_name, class_name_to_idx)
-            if gt_idx is None:
-                stats["skipped_unknown_truth"] += 1
-                continue
-
-            y_true.append(gt_idx)
-            y_pred.append(pred_idx)
-
-            rows.append({
-                "path": str(p),
-                "true_label": class_names[gt_idx],
-                "pred_label": pred_name,
-                "pred_conf": top_confs[0],
-                "topk": _fmt_topk(top_idxs, top_confs, class_names),
-            })
-
-    y_true_arr = np.array(y_true, dtype=int)
-    y_pred_arr = np.array(y_pred, dtype=int)
-    return y_true_arr, y_pred_arr, rows, stats
-
 
 # ---------- Inference (multitask) ----------
 
@@ -309,77 +247,48 @@ def main():
     img_size = int(ckpt_args.get("img_size", 224))
     batch_size = int(ckpt_args.get("batch_size", 32))
 
-    class_names = meta.get("class_names")  # for single-task
     species_list = meta.get("species_list")
     disease_list = meta.get("disease_list")
     health_labels = meta.get("health_labels") or ["Sick", "Healthy"]
 
-    # Determine multitask from presence of species & disease lists
-    multitask = (species_list is not None and disease_list is not None)
+    print(f"Mode: multitask, img_size={img_size}, device={device}")
+    ds = FolderLabeledDataset(
+        data_dir, img_size, mean, std,
+        multitask=True, healthy_keyword=args.healthy_keyword
+    )
+    dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
-    if multitask:
-        print(f"Mode: multitask, img_size={img_size}, device={device}")
-        ds = FolderLabeledDataset(
-            data_dir, img_size, mean, std,
-            multitask=True, healthy_keyword=args.healthy_keyword
-        )
-        dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    y_true_d, y_pred_d, dz_conf_list, y_true_h, y_pred_h, y_true_s, y_pred_s, rows, stats = infer_and_eval_multitask(
+        model, dl, device,
+        species_list=species_list,
+        disease_list=disease_list,
+        health_labels=health_labels,
+        topk=topk
+    )
 
-        y_true_d, y_pred_d, dz_conf_list, y_true_h, y_pred_h, y_true_s, y_pred_s, rows, stats = infer_and_eval_multitask(
-            model, dl, device,
-            species_list=species_list,
-            disease_list=disease_list,
-            health_labels=health_labels,
-            topk=topk
-        )
+    ensure_dir(out_dir)
 
-        ensure_dir(out_dir)
+    reporter = EvaluationReporter(out_dir)
+    # Disease (multiclass) report + confusion matrix
+    rpt = reporter.write_classification_report(y_true_d, y_pred_d, disease_list, "test_report_disease.txt")
+    print(rpt)
 
-        reporter = EvaluationReporter(out_dir)
-        # Disease (multiclass) report + confusion matrix
-        rpt = reporter.write_classification_report(y_true_d, y_pred_d, disease_list, "test_report_disease.txt")
-        print(rpt)
+    cm_path = reporter.save_confusion_matrix_img(y_true_d, y_pred_d, disease_list, "disease_")
+    print(f"Saved disease confusion matrix to {cm_path}")
 
-        cm_path = reporter.save_confusion_matrix_img(y_true_d, y_pred_d, disease_list, "disease_")
-        print(f"Saved disease confusion matrix to {cm_path}")
+    # species (multiclass) report + confusion matrix
+    rpt2 = reporter.write_classification_report(y_true_s, y_pred_s, species_list, "test_report_species.txt")
+    print(rpt2)
 
-        # species (multiclass) report + confusion matrix
-        rpt2 = reporter.write_classification_report(y_true_s, y_pred_s, species_list, "test_report_species.txt")
-        print(rpt2)
+    cm_path = reporter.save_confusion_matrix_img(y_true_s, y_pred_s, species_list, "species_")
+    print(f"Saved species confusion matrix to {cm_path}")
 
-        cm_path = reporter.save_confusion_matrix_img(y_true_s, y_pred_s, species_list, "species_")
-        print(f"Saved species confusion matrix to {cm_path}")
+    # Health (binary) report (no label_names arg in your API)
+    rpt_h = reporter.write_classification_report(y_true_h, y_pred_h, health_labels, "test_report_health.txt")
+    print(rpt_h)
 
-        # Health (binary) report (no label_names arg in your API)
-        rpt_h = reporter.write_classification_report(y_true_h, y_pred_h, health_labels, "test_report_health.txt")
-        print(rpt_h)
-
-        ece_disease = compute_ece(dz_conf_list, y_pred_d, y_true_d, 8, out_dir)
-        print(f"ECE (Disease Head): {ece_disease:.4f}")
-
-
-    else:
-        if not class_names:
-            raise RuntimeError("Checkpoint missing 'class_names' for single-task evaluation.")
-        print(f"Mode: single-task, img_size={img_size}, device={device}")
-        ds = FolderLabeledDataset(data_dir, img_size, mean, std, multitask=False)
-        dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
-
-        y_true, y_pred, rows, stats = infer_and_eval_single(
-            model, dl, device, class_names=class_names, topk=topk
-        )
-
-        ensure_dir(out_dir)
-
-        # Reports
-        rpt_path = out_dir / "test_report.txt"
-        rpt = write_classification_report(y_true, y_pred, class_names, rpt_path)
-        print(rpt)
-        cm_path = save_confusion_matrix_img(y_true, y_pred, class_names, out_dir, "")
-        print(f"Saved confusion matrix to {cm_path}")
-
-        print("Eval artifacts in", out_dir)
-        print(f"Stats: seen={stats['seen']}, skipped_unknown_truth={stats['skipped_unknown_truth']}")
+    ece_disease = compute_ece(dz_conf_list, y_pred_d, y_true_d, 8, out_dir)
+    print(f"ECE (Disease Head): {ece_disease:.4f}")
 
 
 def compute_ece(y_probs, y_preds, y_true, n_bins=10, save_path: Path = None):

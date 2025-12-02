@@ -106,25 +106,15 @@ def load_model(ckpt_path: Path, device: torch.device) -> Tuple[
     ckpt = torch.load(ckpt_path, map_location='cpu')
     chkpt_args = ckpt.get('args', {})
     model_name = chkpt_args.get('model', 'efficientnet_b0')
-    multitask = chkpt_args.get('multitask', False)
 
-    # Determine multitask by presence of species/disease lists
-    species_list = None
-    disease_list = None
     class_names = None
 
-    if multitask:
-        species_list = ckpt.get('species_list')
-        disease_list = ckpt.get('disease_list')
-        if species_list is None or disease_list is None:
-            raise RuntimeError("Checkpoint missing 'species list' or 'disease list for multitask model'")
+    species_list = ckpt.get('species_list')
+    disease_list = ckpt.get('disease_list')
+    if species_list is None or disease_list is None:
+        raise RuntimeError("Checkpoint missing 'species list' or 'disease list for multitask model'")
 
-        model = MultiTaskEffNet(model_name, num_s=len(species_list), num_d=len(disease_list))
-    else:
-        class_names = ckpt.get('class_names')
-        if class_names is None:
-            raise RuntimeError("Checkpoint missing 'class_names' for single-task model.")
-        model = timm.create_model(model_name, pretrained=False, num_classes=len(class_names))
+    model = MultiTaskEffNet(model_name, num_s=len(species_list), num_d=len(disease_list))
 
     model.load_state_dict(ckpt['model_state'], strict=True)
     model.to(device).eval()

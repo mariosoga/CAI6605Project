@@ -70,7 +70,7 @@ class EarlyStopper:
         # Not improved
         if self._cooldown_left > 0:
             self._cooldown_left -= 1
-            # during cooldown we don't increment bad_count
+            # during cooldown, we don't increment bad_count
             return False
 
         self._bad_count += 1
