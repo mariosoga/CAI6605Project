@@ -1,5 +1,6 @@
 # Smart Plant Recognition Tool (SPROUT) (Multi-Task: Species + Health + Disease)
 
+## Midterm Project:
 ---
 This repo trains an EfficientNet backbone with **three heads**:
 
@@ -12,7 +13,7 @@ this is a derivative classification from the disease head)
 
  ---
 
-## Quickstart
+### Quickstart
 
 Below is the main steps to use SPROUT:
 
@@ -25,7 +26,7 @@ python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/app
 
 ---
 
-## 1) Requirements
+### 1) Requirements
 
 The code uses torch torchvision and timm to train, evaluate and test the system. It also uses scikit-learn for
 reporting. Run the command below to install dependencies.
@@ -36,7 +37,7 @@ pip install -r requirements.txt
 
 ---
 
-## 2) Dataset
+### 2) Dataset
 
 This system utilizes a unified dataset derived from both PlantVillage and PlantDoc sources. The two datasets have been
 merged into a single collection, organized according to the PlantVillage directory structure.
@@ -55,7 +56,7 @@ data/plantvillage dataset/color/
 
 ---
 
-## 3) Build a CSV index & vocab
+### 3) Build a CSV index & vocab
 
 This step scans your dataset and generates a set of helpful files for inspection and downstream tooling:
 
@@ -86,9 +87,9 @@ Throughout this project, health status is encoded as:
 
 ---
 
-## 4) Train
+### 4) Train
 
-### Single-task (legacy, combined disease classes)
+#### Single-task (legacy, combined disease classes)
 
 The system originally used a single-head classifier that predicted combined species_disease labels. While this coupled
 approach has since evolved into a multi-head architecture with separate outputs for species, disease, and health status,
@@ -99,7 +100,7 @@ To run training and evaluation in single-task mode, use the following command:
 python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs --epochs 20   --grad_cam --grad_cam_k 50
 ```
 
-### Multitask (species + health + disease) — recommended
+#### Multitask (species + health + disease) — recommended
 
 This is the recommended mode for running the Smart Plant Care Assistant. It performs training and evaluation using a
 multi-head architecture that predicts species, disease, and health status simultaneously.
@@ -154,9 +155,88 @@ python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datase
 python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300"   --out_dir outputs/fsgmRun/eps_0.300 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
 ```
 
+
+
 ---
 
-## 5) Grad-CAM Visualization
+### 5) Artifacts
+
+Under `--out_dir`:
+
+- **Checkpoint**: `best.pt`
+    - Single-task: `class_names` (combined labels)
+    - Multi-task: `species_list`, `disease_list`, and `class_names = disease_list` (for backward compat)
+- **Disease report (multiclass)**
+    - `classification_report.txt`
+    - `confusion_matrix.png`
+    - `val_predictions.csv`
+- **Health report (binary, if multitask)**
+    - `classification_report_health.txt`
+    - `val_predictions_health.csv`
+- **Hard examples**
+    - Disease: `hard_examples/overconfident_wrong`, `hard_examples/uncertain_correct`
+    - Health:  `hard_examples_binary/...` (if `--save_hard_examples`)
+- **Top confusions**: `confusions/` (if `--save_confusion_pairs`)
+
+---
+
+### 6) Test
+
+SPROUT does not include testing within the training-evaluation pipeline by design. Separating testing allows
+the independent inspection and comparison of metrics from both the evaluation and testing stages.
+
+To run testing, place your test images in a separate folder and point data_dir to that location, and ckpt to the
+location of the trained model check point:
+
+```bash
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test" --out_dir "outputs/fsgm_test"
+python scripts/test_model.py --ckpt outputs/fsgmRun/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/after_at"
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/before_at"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.000/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.000" --out_dir "outputs/base_eps0"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.300/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300" --out_dir "outputs/base_eps0.300"
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.200" --out_dir "outputs/base_model/0_200_perturbation"
+
+```
+
+---
+
+### 7) Inference
+
+##### Single image:
+
+You can run inference on individual images using the trained model checkpoint. This is useful for quick predictions or
+testing the model on new samples.
+
+Alternatively you can run inference on a folder of images by using `--image_dir` instead of `--image_path`
+
+You may Use one of the following:
+
+```bash
+#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/apple_scap.jpg"
+#or
+#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/tomato_early_blight.jpg"
+#or
+#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/bacterial_spot_tomato.jpg"
+python scripts/test_infer.py --ckpt outputs/best.pt --image_dir "data/infer"
+
+```
+
+---
+
+### 8) Tips & Troubleshooting
+
+- **Health labels**: Everywhere we assume **0=Sick, 1=Healthy**. Binary reports use labels `('Sick','Healthy')`.
+- **Class imbalance**: Consider class weights for species/disease heads.
+- **Determinism**: use `set_seed(...)` and `seed_worker` in DataLoaders for reproducibility (see `core/utils.py`).
+
+```bash
+python scripts/create_fgsm_datasets.py
+```
+
+---
+## Final Project:
+
+### 1) Transparency and Explainability: Grad-CAM Visualization
 
 Grad-CAM (Gradient-weighted Class Activation Mapping) provides visual explanations of what regions in the image most
 influenced the model’s decision.
@@ -182,80 +262,3 @@ Other useful controls:
 
 - Overconfident wrong CAMs: `outputs/hard_examples/overconfident_wrong_cam/`
 - Uncertain correct CAMs:   `outputs/hard_examples/uncertain_correct_cam/`
-
----
-
-## 6) Artifacts
-
-Under `--out_dir`:
-
-- **Checkpoint**: `best.pt`
-    - Single-task: `class_names` (combined labels)
-    - Multi-task: `species_list`, `disease_list`, and `class_names = disease_list` (for backward compat)
-- **Disease report (multiclass)**
-    - `classification_report.txt`
-    - `confusion_matrix.png`
-    - `val_predictions.csv`
-- **Health report (binary, if multitask)**
-    - `classification_report_health.txt`
-    - `val_predictions_health.csv`
-- **Hard examples**
-    - Disease: `hard_examples/overconfident_wrong`, `hard_examples/uncertain_correct`
-    - Health:  `hard_examples_binary/...` (if `--save_hard_examples`)
-- **Top confusions**: `confusions/` (if `--save_confusion_pairs`)
-
----
-
-## 7) Test
-
-SPROUT does not include testing within the training-evaluation pipeline by design. Separating testing allows
-the independent inspection and comparison of metrics from both the evaluation and testing stages.
-
-To run testing, place your test images in a separate folder and point data_dir to that location, and ckpt to the
-location of the trained model check point:
-
-```bash
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test" --out_dir "outputs/fsgm_test"
-python scripts/test_model.py --ckpt outputs/fsgmRun/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/after_at"
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/before_at"
-python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.000/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.000" --out_dir "outputs/base_eps0"
-python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.300/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300" --out_dir "outputs/base_eps0.300"
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.200" --out_dir "outputs/base_model/0_200_perturbation"
-
-```
-
----
-
-## 8) Inference
-
-#### Single image:
-
-You can run inference on individual images using the trained model checkpoint. This is useful for quick predictions or
-testing the model on new samples.
-
-Alternatively you can run inference on a folder of images by using `--image_dir` instead of `--image_path`
-
-You may Use one of the following:
-
-```bash
-#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/apple_scap.jpg"
-#or
-#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/tomato_early_blight.jpg"
-#or
-#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/bacterial_spot_tomato.jpg"
-python scripts/test_infer.py --ckpt outputs/best.pt --image_dir "data/infer"
-
-```
-
----
-
-## 9) Tips & Troubleshooting
-
-- **Health labels**: Everywhere we assume **0=Sick, 1=Healthy**. Binary reports use labels `('Sick','Healthy')`.
-- **Class imbalance**: Consider class weights for species/disease heads.
-- **Determinism**: use `set_seed(...)` and `seed_worker` in DataLoaders for reproducibility (see `core/utils.py`).
-
-```bash
-python scripts/create_fgsm_datasets.py
-```
-
