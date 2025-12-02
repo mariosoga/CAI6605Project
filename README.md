@@ -262,3 +262,21 @@ Other useful controls:
 
 - Overconfident wrong CAMs: `outputs/hard_examples/overconfident_wrong_cam/`
 - Uncertain correct CAMs:   `outputs/hard_examples/uncertain_correct_cam/`
+
+
+### 2) Reliability and Robustness: FGSM Attack
+
+Fast Gradient Sign Method (FGSM) is a technique used to generate adversarial examples that can deliberately fool machine learning models.
+
+The code that generates these preturbed adversarial images can be found in ```fgsm.py```. 
+- In this script, we import images from the parameter passed folder and create the adversarial images with different levels of preturbations (epsilons). The generated images can be found in the `outputs/fgsm_test/` folder. Each different epsilon has its folder folder containing the images.
+- This code also tests and outputs the accuracy of the model using these newly created images.
+
+Sample command to run:
+
+```python3 -m scripts.fgsm --ckpt outputs/best.pt --data_dir data/dataset/test --out_dir outputs/fgsm_test```
+
+- scripts.fgsm: is the fgsm.py found in the scripts folder
+- outputs/best.pt: the current best model with updated weights
+- data/dataset/test: Source of the images that will  be preturbed
+- outputs/fgsm_test: Output folder of newly created FGSM-preturbed images
