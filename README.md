@@ -141,9 +141,15 @@ process. Below is a complete list of available command-line arguments:
 |                                | `--norm_std`             | `str`    | `0.229,0.224,0.225` | Image normalization std (CSV)                       |
 |                                | `--cam_alpha`            | `float`  | `0.45`              | Transparency for Grad-CAM overlay                   |
 
-This is an example for running training and evaluation.
-##python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
-##python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_dataset"   --out_dir outputs/fsgmRun --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
+Below is an example for training on clean data
+
+```bash
+python scripts/train_and_eval_model.py --data_dir "data/dataset/color"   --out_dir outputs/fsgmRun --epochs 20
+--multitask --healthy_keyword healthy --health_loss_weight 1.0 --save_hard_examples --hard_k 50 --save_confusion_pairs
+--pairs_m 5 --examples_per_pair 8 --grad_cam --grad_cam_k 50 --grad_cam_task disease
+```
+
+Example for training on FGSM-Augmented data per epsilon value
 
 ```bash
 python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.000"   --out_dir outputs/fsgmRun/eps_0.000 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
@@ -155,11 +161,9 @@ python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datase
 python scripts/train_and_eval_model.py --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300"   --out_dir outputs/fsgmRun/eps_0.300 --epochs 20 --multitask   --healthy_keyword healthy   --health_loss_weight 1.0   --save_hard_examples --hard_k 50   --save_confusion_pairs --pairs_m 5 --examples_per_pair 8   --grad_cam --grad_cam_k 50 --grad_cam_task disease
 ```
 
-
-
 ---
 
-### 5) Artifacts
+### 5) TRaining and Validation Artifacts
 
 Under `--out_dir`:
 
@@ -188,14 +192,11 @@ the independent inspection and comparison of metrics from both the evaluation an
 To run testing, place your test images in a separate folder and point data_dir to that location, and ckpt to the
 location of the trained model check point:
 
-```bash
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test" --out_dir "outputs/fsgm_test"
-python scripts/test_model.py --ckpt outputs/fsgmRun/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/after_at"
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/before_at"
-python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.000/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.000" --out_dir "outputs/base_eps0"
-python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.300/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300" --out_dir "outputs/base_eps0.300"
-python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.200" --out_dir "outputs/base_model/0_200_perturbation"
+For example, the command below uses the checkpoint in --ckpt to test the dataset in --data_dir and stores results in
+--out-dir.
 
+```bash
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/test" --out_dir "outputs"
 ```
 
 ---
@@ -212,11 +213,11 @@ Alternatively you can run inference on a folder of images by using `--image_dir`
 You may Use one of the following:
 
 ```bash
-#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/apple_scap.jpg"
-#or
-#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/tomato_early_blight.jpg"
-#or
-#python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/bacterial_spot_tomato.jpg"
+#Single image
+python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/apple_scap.jpg"
+python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/tomato_early_blight.jpg"
+python scripts/test_infer.py --ckpt outputs/best.pt --image_path "data/infer/bacterial_spot_tomato.jpg"
+#Testing an entire folder
 python scripts/test_infer.py --ckpt outputs/best.pt --image_dir "data/infer"
 
 ```
@@ -229,11 +230,8 @@ python scripts/test_infer.py --ckpt outputs/best.pt --image_dir "data/infer"
 - **Class imbalance**: Consider class weights for species/disease heads.
 - **Determinism**: use `set_seed(...)` and `seed_worker` in DataLoaders for reproducibility (see `core/utils.py`).
 
-```bash
-python scripts/create_fgsm_datasets.py
-```
-
 ---
+
 ## Final Project:
 
 ### 1) Transparency and Explainability: Grad-CAM Visualization
@@ -263,34 +261,80 @@ Other useful controls:
 - Overconfident wrong CAMs: `outputs/hard_examples/overconfident_wrong_cam/`
 - Uncertain correct CAMs:   `outputs/hard_examples/uncertain_correct_cam/`
 
+### 2) Reliability and Robustness:
 
-### 2) Reliability and Robustness: 
+#### Robustness: FGSM Attack and Adversarial Training
 
-####  Robustness: FGSM Attack and Adversarial Training
+Fast Gradient Sign Method (FGSM) is a technique used to generate adversarial examples that can deliberately fool machine
+learning models.
 
-Fast Gradient Sign Method (FGSM) is a technique used to generate adversarial examples that can deliberately fool machine learning models.
+The code that generates these perturbed adversarial images can be found in ```scripts/fgsm.py```:
 
-The code that generates these preturbed adversarial images can be found in ```fgsm.py```:
-
-- In this script, we import images from the parameter passed folder and create the adversarial images with different levels of preturbations (epsilons). The generated images can be found in the `outputs/fgsm_test/` folder. Each different epsilon has its folder folder containing the images.
+- In this script, we import images from the parameter passed folder and create the adversarial images with different
+  levels of preturbations (epsilons). The generated images can be found in the `outputs/fgsm_test/` folder. Each
+  different epsilon has its own folder containing the images.
 - This code also tests and outputs the accuracy of the model using these newly created images.
 
 **Sample command to run:**
 
-```python3 -m scripts.fgsm --ckpt outputs/best.pt --data_dir data/dataset/test --out_dir outputs/fgsm_test```
+```bash
+python scripts/fgsm.py --ckpt outputs/best.pt --data_dir data/dataset/test --out_dir outputs/fgsm_test
+```
 
-- **scripts.fgsm:** is the fgsm.py found in the scripts folder
+- **scripts/fgsm.py:** is the fgsm.py found in the scripts folder
 - **outputs/best.pt:** the current best model with updated weights
-- **data/dataset/test:** Source of the images that will  be preturbed
-- **outputs/fgsm_test:** Output folder of newly created FGSM-preturbed images
+- **data/dataset/test:** Source of the images that will be perturbed
+- **outputs/fgsm_test:** Output folder of newly created FGSM-perturbed images
 
+## Testing model Before Adversarial Training
 
-####  Reliability: ECE (Expected Calibration Error)
+This command establishes the baseline robustness of the original model (before training on adversarial examples):
 
-ECE (Expected Calibration Error) is a metric used to measure the "honesty" or reliability of a machine learning model's confidence scores. ECE calculates the weighted average difference between the Confidence (what the model thinks) and the Accuracy (what actually happened).
+```bash
+python scripts/test_model.py --ckpt outputs/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/before_at"
+```
 
-The ```compute_ece``` function  found on ```test_model.py``` calculates two averages:
+The script loads the last saved checkpoint and evaluates the model on all images in --data_dir.
+
+## Testing model After Adversarial Training
+
+The checkpoint fgsmRun.best corresponds to a model trained on adversarial images generated using ε values from 0.05 to
+0.30.
+
+Run the following to evaluate this robust model:
+
+```bash
+python scripts/test_model.py --ckpt outputs/fsgmRun/best.pt --data_dir "data/dataset/segmented" --out_dir "outputs/after_at"
+```
+
+## Evaluating Alternative Adversarially-Trained Models
+
+Several models were also trained on datasets perturbed at specific epsilon levels
+Use the following commands to evaluate each one:
+
+```bash
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.000/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.000" --out_dir "outputs/base_eps0"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.050/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.050" --out_dir "outputs/base_eps0.050"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.100/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.100" --out_dir "outputs/base_eps0.100"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.150/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.150" --out_dir "outputs/base_eps0.150"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.200/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.200" --out_dir "outputs/base_eps0.200"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.250/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.250" --out_dir "outputs/base_eps0.250"
+python scripts/test_model.py --ckpt outputs/fsgmRun/eps_0.300/best.pt --data_dir "data/dataset/augmented_datasets/augmented_eps_0.300" --out_dir "outputs/base_eps0.300"
+```
+
+Each run computes metrics using the model that was trained with the corresponding epsilon level.
+
+#### Reliability: ECE (Expected Calibration Error)
+
+ECE (Expected Calibration Error) is a metric used to measure the "honesty" or reliability of a machine learning model's
+confidence scores. ECE calculates the weighted average difference between the Confidence (what the model thinks) and the
+Accuracy (what actually happened). For instance, a model with an 80% confidence is perfectly calibrated if the accuracy
+is also 80%.
+
+The ```compute_ece``` function found on ```test_model.py``` calculates two averages:
+
 - conf: Average confidence of predictions in this bin
 - acc: Actual accuracy in this bin
 
-It takes the absolute difference of these and weights it by how many samples were in that bin. This information is gathered when we test the model.
+It takes the absolute difference of these and weights it by how many samples were in that bin. This information is
+gathered when we test the model.
